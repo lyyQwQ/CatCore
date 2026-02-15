@@ -2,6 +2,7 @@
 {
 	public enum PlatformType
 	{
-		Twitch
+		Twitch,
+		Bilibili
 	}
 }

@@ -9,6 +9,7 @@ namespace CatCore.Models.Api.Responses
 	internal readonly struct TwitchStateResponseDto
 	{
 		public bool LoggedIn { get; }
+		public bool Enabled { get; }
 		public bool OwnChannelEnabled { get; }
 
 		public List<TwitchChannelData> ChannelData { get; }
@@ -21,6 +22,7 @@ namespace CatCore.Models.Api.Responses
 		public TwitchStateResponseDto(bool isValid, ValidationResponse? loggedInUser, IEnumerable<UserData>? channelData, TwitchConfig twitchConfig)
 		{
 			LoggedIn = isValid;
+			Enabled = twitchConfig.Enabled;
 
 			OwnChannelEnabled = twitchConfig.OwnChannelEnabled;
 			ChannelData = channelData?

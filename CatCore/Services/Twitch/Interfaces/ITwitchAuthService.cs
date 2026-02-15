@@ -13,7 +13,7 @@ namespace CatCore.Services.Twitch.Interfaces
 
 		AuthenticationStatus Status { get; }
 		event Action? OnCredentialsChanged;
-		event Action<AuthenticationStatus>? OnAuthenticationStatusChanged;
+		event Action? OnAuthenticationStatusChanged;
 
 		ValidationResponse? FetchLoggedInUserInfo();
 		Task<ValidationResponse?> FetchLoggedInUserInfoWithRefresh();

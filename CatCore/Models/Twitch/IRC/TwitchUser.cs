@@ -1,10 +1,11 @@
-﻿using System.Collections.ObjectModel;
+using System;
+using System.Collections.ObjectModel;
 using CatCore.Models.Shared;
 using JetBrains.Annotations;
 
 namespace CatCore.Models.Twitch.IRC
 {
-	public sealed class TwitchUser : IChatUser
+	public sealed class TwitchUser : IChatUserWithBadges
 	{
 		[PublicAPI]
 		public string Id { get; internal set; }
@@ -48,7 +49,7 @@ namespace CatCore.Models.Twitch.IRC
 			IsSubscriber = isSubscriber;
 			IsTurbo = isTurbo;
 			IsVip = isVip;
-			Badges = badges;
+			Badges = badges ?? new ReadOnlyCollection<IChatBadge>(Array.Empty<IChatBadge>());
 		}
 	}
 }

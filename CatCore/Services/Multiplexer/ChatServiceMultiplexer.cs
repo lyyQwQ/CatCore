@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using CatCore.Services.Bilibili.Interfaces;
 using CatCore.Services.Interfaces;
 using CatCore.Services.Twitch.Interfaces;
 
@@ -9,6 +10,7 @@ namespace CatCore.Services.Multiplexer
 	public sealed class ChatServiceMultiplexer : IChatService<MultiplexedPlatformService, MultiplexedChannel, MultiplexedMessage>
 	{
 		private readonly ITwitchService _twitchPlatformService;
+		private readonly IBilibiliService? _bilibiliPlatformService;
 
 		/// <inheritdoc />
 		public event Action<MultiplexedPlatformService>? OnAuthenticatedStateChanged;
@@ -50,6 +52,7 @@ namespace CatCore.Services.Multiplexer
 			}
 
 			_twitchPlatformService = platformServices.Select(s => s.Underlying).OfType<ITwitchService>().First();
+			_bilibiliPlatformService = platformServices.Select(s => s.Underlying).OfType<IBilibiliService>().FirstOrDefault();
 		}
 
 		/// <summary>
@@ -57,6 +60,12 @@ namespace CatCore.Services.Multiplexer
 		/// </summary>
 		/// <returns>Returns the Twitch service</returns>
 		public ITwitchService GetTwitchPlatformService() => _twitchPlatformService;
+
+		/// <summary>
+		/// Returns the Bilibili service. Gives access to Bilibili-specific features.
+		/// </summary>
+		/// <returns>Returns the Bilibili service, or null if unavailable</returns>
+		public IBilibiliService? GetBilibiliPlatformService() => _bilibiliPlatformService;
 
 		private void ChatServiceOnAuthenticatedStateChanged(MultiplexedPlatformService scv)
 		{

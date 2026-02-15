@@ -49,28 +49,20 @@ namespace CatCore.Services
 			using var _ = await Synchronization.LockAsync(_connectionLocker).ConfigureAwait(false);
 			var targetUri = new Uri(url);
 			_underlyingTcpClient = CreateTcpClient(targetUri);
-			_websocketClient = new MessageWebsocketRx(_underlyingTcpClient, hasTransferTcpSocketLifeCycleOwnership: true)
+			_websocketClient = new MessageWebsocketRx(_underlyingTcpClient)
 			{
 				Headers = new Dictionary<string, string> { { "Pragma", "no-cache" }, { "Cache-Control", "no-cache" } }, TlsProtocolType = SslProtocols.Tls12
 			};
 
 			var tcs = new TaskCompletionSource<object>();
 
-			var wrapper = new WebSocketConnection(_websocketClient, _logger);
+			var wrapper = new WebSocketConnection(_websocketClient);
 
 			var websocketConnectionObservable = _websocketClient
 				.WebsocketConnectWithStatusObservable(targetUri, handshakeTimeout: TimeSpan.FromSeconds(15))
 				.ObserveOn(System.Reactive.Concurrency.ThreadPoolScheduler.Instance)
-				.Catch<(IDataframe? dataframe, ConnectionStatus state), WebsocketClientLiteTcpConnectException>(ex =>
-				{
-					_logger.Error(ex, "A tcp connect exception occurred. Marking connection as failed");
-					return Observable.Return<(IDataframe? dataframe, ConnectionStatus state)>((null, ConnectionStatus.ConnectionFailed));
-				})
-				.Catch<(IDataframe? dataframe, ConnectionStatus state), WebsocketClientLiteException>(ex =>
-				{
-					_logger.Error(ex, "A websocket error occurred. Marking connection as failed");
-					return Observable.Return<(IDataframe? dataframe, ConnectionStatus state)>((null, ConnectionStatus.ConnectionFailed));
-				});
+				.Catch<(IDataframe? dataframe, ConnectionStatus state), WebsocketClientLiteTcpConnectException>(
+					_ => Observable.Return<(IDataframe? dataframe, ConnectionStatus state)>((null, ConnectionStatus.ConnectionFailed)));
 			_websocketConnectionSubject = new Subject<(IDataframe? dataframe, ConnectionStatus state)>();
 
 			_connectObservable = _websocketConnectionSubject
@@ -100,7 +92,7 @@ namespace CatCore.Services
 				.Subscribe();
 			_messageReceivedObservable = _websocketConnectionSubject
 				.Where(tuple => tuple.state == ConnectionStatus.DataframeReceived && tuple.dataframe != null)
-				.Select(tuple => Observable.FromAsync(() => MessageReceivedHandler(wrapper, tuple.dataframe!.Message!)))
+				.Select(tuple => Observable.FromAsync(() => MessageReceivedHandler(wrapper, tuple.dataframe!.Message)))
 				.Concat()
 				.Subscribe();
 
@@ -111,13 +103,13 @@ namespace CatCore.Services
 
 		public async Task Disconnect(string? reason = null)
 		{
+			_logger.Warning("Disconnect requested. Optional reason: {Reason}", reason);
 			using var _ = await Synchronization.LockAsync(_connectionLocker).ConfigureAwait(false);
+			_logger.Warning("Executing disconnect logic. Optional reason: {Reason}", reason);
 			if (_websocketClient == null)
 			{
 				return;
 			}
-
-			_logger.Warning("Executing disconnect logic. Optional reason: {Reason}", reason);
 
 			_disposableWebsocketSubscription?.Dispose();
 			_disposableWebsocketSubscription = null;
@@ -210,13 +202,11 @@ namespace CatCore.Services
 
 	internal class WebSocketConnection
 	{
-		private readonly ILogger _logger;
 		private readonly MessageWebsocketRx _wss;
 
-		public WebSocketConnection(MessageWebsocketRx websocketClient, ILogger logger)
+		public WebSocketConnection(MessageWebsocketRx websocketClient)
 		{
 			_wss = websocketClient;
-			_logger = logger;
 		}
 
 		private bool IsConnected => _wss.IsConnected;
@@ -231,12 +221,7 @@ namespace CatCore.Services
 		{
 			if (IsConnected)
 			{
-				_logger.Verbose("Sending message");
 				await _wss.GetSender().SendText(message).ConfigureAwait(false);
-			}
-			else
-			{
-				_logger.Warning("WS is closed, couldn't send message");
 			}
 		}
 	}

@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using CatCore.Models.Shared;
 using CatCore.Services.Interfaces;
@@ -7,6 +8,8 @@ namespace CatCore.Services.Multiplexer
 {
 	public class MultiplexedPlatformService : IPlatformService<MultiplexedPlatformService, MultiplexedChannel, MultiplexedMessage>, IDisposable
 	{
+		private static readonly ConditionalWeakTable<object, MultiplexedPlatformService> WRAPPER_CACHE = new();
+
 		private abstract class Info
 		{
 			public abstract bool LoggedIn(object o);
@@ -128,7 +131,15 @@ namespace CatCore.Services.Multiplexer
 			where TService : IPlatformService<TService, TChannel, TMsg>
 			where TChannel : IChatChannel<TChannel, TMsg>
 			where TMsg : IChatMessage<TMsg, TChannel>
-			=> new(service, Info<TService, TChannel, TMsg>.INSTANCE);
+		{
+			if (service == null)
+			{
+				throw new ArgumentNullException(nameof(service));
+			}
+
+			var serviceKey = (object)service;
+			return WRAPPER_CACHE.GetValue(serviceKey, static key => new MultiplexedPlatformService(key, Info<TService, TChannel, TMsg>.INSTANCE));
+		}
 
 		public bool LoggedIn => _info.LoggedIn(_service);
 
@@ -149,6 +160,7 @@ namespace CatCore.Services.Multiplexer
 				}
 
 				_info.Unsubscribe(_service, _eventHost);
+				WRAPPER_CACHE.Remove(_service);
 
 				_disposedValue = true;
 			}

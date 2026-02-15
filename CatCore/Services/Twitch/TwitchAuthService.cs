@@ -30,22 +30,16 @@ namespace CatCore.Services.Twitch
 
 		private readonly string[] _twitchAuthorizationScope =
 		{
-			"bits:read",
+			"channel:moderate",
 			"chat:edit",
 			"chat:read",
+			"bits:read",
+			"user:read:follows",
 			"channel:manage:broadcast",
 			"channel:manage:polls",
 			"channel:manage:predictions",
-			"channel:manage:raids",
 			"channel:manage:redemptions",
-			"channel:moderate",
-			"channel:read:subscriptions",
-			"moderator:manage:announcements",
-			"moderator:manage:banned_users",
-			"moderator:manage:chat_messages",
-			"moderator:manage:chat_settings",
-			"user:manage:chat_color",
-			"user:read:follows"
+			"channel:read:subscriptions"
 		};
 
 		private readonly ILogger _logger;
@@ -78,11 +72,11 @@ namespace CatCore.Services.Twitch
 				}
 
 				_status = value;
-				OnAuthenticationStatusChanged?.Invoke(_status);
+				OnAuthenticationStatusChanged?.Invoke();
 			}
 		}
 
-		public event Action<AuthenticationStatus>? OnAuthenticationStatusChanged;
+		public event Action? OnAuthenticationStatusChanged;
 
 		public TwitchAuthService(ILogger logger, IKittenPathProvider kittenPathProvider, ConstantsBase constants, Version libraryVersion) : base(logger, kittenPathProvider)
 		{
@@ -161,7 +155,7 @@ namespace CatCore.Services.Twitch
 			}
 			else
 			{
-				_logger.Warning("No Twitch Credentials present");
+				_logger.Information("No Twitch Credentials present");
 			}
 
 			return null;
@@ -237,11 +231,11 @@ namespace CatCore.Services.Twitch
 			}
 
 			var validationResponse = await responseMessage.Content.ReadFromJsonAsync(TwitchAuthSerializerContext.Default.ValidationResponse).ConfigureAwait(false);
-			_loggedInUser = validationResponse;
-
 			UpdateCredentials(credentials.ValidUntil!.Value > validationResponse.ExpiresIn
 				? new TwitchCredentials(credentials.AccessToken, credentials.RefreshToken, validationResponse.ExpiresIn)
 				: credentials);
+
+			_loggedInUser = validationResponse;
 
 			Status = AuthenticationStatus.Authenticated;
 

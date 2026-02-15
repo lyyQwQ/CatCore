@@ -14,17 +14,19 @@ namespace CatCore.Services.Twitch
 		private readonly ILogger _logger;
 		private readonly ThreadSafeRandomFactory _randomFactory;
 		private readonly IKittenPlatformActiveStateManager _activeStateManager;
+		private readonly IKittenSettingsService _settingsService;
 		private readonly ITwitchAuthService _twitchAuthService;
 		private readonly ITwitchChannelManagementService _twitchChannelManagementService;
 
 		private readonly Dictionary<string, TwitchPubSubServiceExperimentalAgent> _activePubSubConnections;
 
-		public TwitchPubSubServiceManager(ILogger logger, ThreadSafeRandomFactory randomFactory, IKittenPlatformActiveStateManager activeStateManager, ITwitchAuthService twitchAuthService,
+		public TwitchPubSubServiceManager(ILogger logger, ThreadSafeRandomFactory randomFactory, IKittenPlatformActiveStateManager activeStateManager, IKittenSettingsService settingsService, ITwitchAuthService twitchAuthService,
 			ITwitchChannelManagementService twitchChannelManagementService)
 		{
 			_logger = logger;
 			_randomFactory = randomFactory;
 			_activeStateManager = activeStateManager;
+			_settingsService = settingsService;
 			_twitchAuthService = twitchAuthService;
 			_twitchChannelManagementService = twitchChannelManagementService;
 
@@ -36,6 +38,12 @@ namespace CatCore.Services.Twitch
 
 		async Task ITwitchPubSubServiceManager.Start()
 		{
+			if (!_settingsService.Config.TwitchConfig.Enabled)
+			{
+				_logger.Information("Twitch PubSub start skipped: twitch config disabled");
+				return;
+			}
+
 			foreach (var channelId in _twitchChannelManagementService.GetAllActiveChannelIds())
 			{
 				CreatePubSubAgent(channelId);
@@ -58,7 +66,7 @@ namespace CatCore.Services.Twitch
 
 		private void TwitchAuthServiceOnOnCredentialsChanged()
 		{
-			if (!_twitchAuthService.HasTokens || !_activeStateManager.GetState(PlatformType.Twitch))
+			if (!_twitchAuthService.HasTokens || !_activeStateManager.GetState(PlatformType.Twitch) || !_settingsService.Config.TwitchConfig.Enabled)
 			{
 				return;
 			}
@@ -76,7 +84,7 @@ namespace CatCore.Services.Twitch
 
 		private async void TwitchChannelManagementServiceOnChannelsUpdated(object sender, TwitchChannelsUpdatedEventArgs args)
 		{
-			if (_activeStateManager.GetState(PlatformType.Twitch))
+			if (_activeStateManager.GetState(PlatformType.Twitch) && _settingsService.Config.TwitchConfig.Enabled)
 			{
 				foreach (var disabledChannel in args.DisabledChannels)
 				{

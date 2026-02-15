@@ -3,10 +3,8 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using CatCore.Exceptions;
-using CatCore.Models.Twitch.Helix.Requests;
 using CatCore.Models.Twitch.Helix.Responses;
 using CatCore.Models.Twitch.Helix.Responses.Badges;
-using CatCore.Models.Twitch.Helix.Responses.Bans;
 using CatCore.Models.Twitch.Helix.Responses.Bits.Cheermotes;
 using CatCore.Models.Twitch.Helix.Responses.Emotes;
 using CatCore.Models.Twitch.Helix.Responses.Polls;
@@ -62,191 +60,6 @@ namespace CatCore.Services.Twitch.Interfaces
 			CancellationToken cancellationToken = default);
 
 		/// <summary>
-		/// Gets the broadcaster’s chat settings.
-		/// </summary>
-		/// <param name="broadcasterId">The ID of the broadcaster whose chat settings you want to get</param>
-		/// <param name="withModeratorPermissions">Check the broadcaster's chat settings as a moderator, will include NonModeratorChatDelay related properties</param>
-		/// <param name="cancellationToken">CancellationToken that can be used to cancel the call</param>
-		/// <returns>Response containing the channel settings of the requested broadcaster</returns>
-		/// <exception cref="TwitchNotAuthenticatedException">Gets thrown when the user isn't authenticated, either make sure the user is logged in or try again later.</exception>
-		/// <exception cref="ArgumentException">Gets thrown when validation regarding one of the arguments fails.</exception>
-		/// <remarks><a href="https://dev.twitch.tv/docs/api/reference/#get-chat-settings">Check out the Twitch API Reference docs.</a></remarks>
-		Task<ResponseBase<ChatSettings>?> GetChatSettings(string broadcasterId, bool withModeratorPermissions = false, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Updates the broadcaster’s chat settings.
-		/// </summary>
-		/// <param name="broadcasterId">The ID of the broadcaster whose chat settings you want to update</param>
-		/// <param name="emoteMode">Indicates whether messages may only contain emotes or not</param>
-		/// <param name="followerMode">Indicates whether the broadcaster' chat is restricted to followers only</param>
-		/// <param name="followerModeDurationMinutes">The length of time, in minutes, that users must follow the broadcaster before being able to participate in the chat room. Minimum: 0 (No restrictions). Maximum: 129600 (3 months). Overrides <paramref name="followerMode" /> if set.</param>
-		/// <param name="nonModeratorChatDelay">Indicates whether the broadcaster adds a short delay before chat messages appear in the chat. This gives chat moderators and bots a chance to remove them before viewers can see the message.</param>
-		/// <param name="nonModeratorChatDelayDurationSeconds">The amount of time, in seconds, that messages are delayed before appearing in chat. Valid values:
-		/// <list type="bullet">
-		/// <item><description>2: 2 second delay (recommended)</description></item>
-		/// <item><description>4: 4 second delay</description></item>
-		/// <item><description>6: 6 second delay</description></item>
-		/// </list>
-		/// Overrides <paramref name="nonModeratorChatDelay" /> if set.
-		/// </param>
-		/// <param name="slowMode">Indicates that the broadcaster limits how often users are allowed to send messages in chat.</param>
-		/// <param name="slowModeWaitTimeSeconds">The amount of time, in seconds, that users must wait between sending messages. Minimum: 3 (No restrictions). Maximum: 120 (2 minutes). Overrides <paramref name="slowMode" /> if set.</param>
-		/// <param name="subscriberMode">Indicates whether only users who subscribe to the broadcaster's channel may send messages.</param>
-		/// <param name="uniqueChatMode">Indicates whether the broadcaster requires users to post only unique messages in chat.</param>
-		/// <param name="cancellationToken">CancellationToken that can be used to cancel the call</param>
-		/// <returns>Response containing the channel settings of the requested broadcaster</returns>
-		/// <exception cref="TwitchNotAuthenticatedException">Gets thrown when the user isn't authenticated, either make sure the user is logged in or try again later.</exception>
-		/// <exception cref="ArgumentException">Gets thrown when validation regarding one of the arguments fails.</exception>
-		/// <remarks><a href="https://dev.twitch.tv/docs/api/reference/#update-chat-settings">Check out the Twitch API Reference docs.</a></remarks>
-		Task<ResponseBase<ChatSettings>?> UpdateChatSettings(string broadcasterId, bool? emoteMode = null, bool? followerMode = null, uint? followerModeDurationMinutes = null,
-			bool? nonModeratorChatDelay = null, uint? nonModeratorChatDelayDurationSeconds = null, bool? slowMode = null, uint? slowModeWaitTimeSeconds = null, bool? subscriberMode = null,
-			bool? uniqueChatMode = null, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Gets all users that the broadcaster banned or put in a timeout.
-		/// </summary>
-		/// <param name="userIds">A list of user IDs used to filter the results. Maximum: 100</param>
-		/// <param name="limit">The maximum number of items to return per page in the response. Maximum: 100. Default: 20.</param>
-		/// <param name="continuationCursorBefore">The cursor used to get the previous page of results.</param>
-		/// <param name="continuationCursorAfter">The cursor used to get the next page of results.</param>
-		/// <param name="cancellationToken">CancellationToken that can be used to cancel the call</param>
-		/// <returns>Response containing paginated info about users who are timed-out or banned</returns>
-		/// <exception cref="TwitchNotAuthenticatedException">Gets thrown when the user isn't authenticated, either make sure the user is logged in or try again later.</exception>
-		/// <exception cref="ArgumentException">Gets thrown when validation regarding one of the arguments fails.</exception>
-		/// <remarks><a href="https://dev.twitch.tv/docs/api/reference/#get-banned-users">Check out the Twitch API Reference docs.</a></remarks>
-		Task<ResponseBaseWithPagination<BannedUserInfo>?> GetBannedUsers(string[]? userIds = null, uint? limit = null, string? continuationCursorBefore = null,
-			string? continuationCursorAfter = null, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Bans a user from participating in the specified broadcaster’s chat room or puts them in a timeout.
-		/// If the user is currently in a timeout, you can call this endpoint to change the durationSeconds of the timeout or ban them altogether. If the user is currently banned, you cannot call this method to put them in a timeout instead.
-		/// </summary>
-		/// <param name="broadcasterId">The ID of the broadcaster whose chat room the user is being banned/timed-out from.</param>
-		/// <param name="userId">The ID of the user to ban or put in a timeout.</param>
-		/// <param name="durationSeconds">To put a user in a timeout, include this field and specify the timeout period, in seconds. Minimum: 1 second. Maximum: 1209600 seconds (2 weeks). To ban a user indefinitely, use <see langword="null" /> instead.</param>
-		/// <param name="reason">he reason the you’re banning the user or putting them in a timeout. Limited to 500 characters, if the text is longer, it will be truncated.</param>
-		/// <param name="cancellationToken">CancellationToken that can be used to cancel the call</param>
-		/// <returns>Response containing information about the user that just received a ban or time-out.</returns>
-		/// <exception cref="TwitchNotAuthenticatedException">Gets thrown when the user isn't authenticated, either make sure the user is logged in or try again later.</exception>
-		/// <exception cref="ArgumentException">Gets thrown when validation regarding one of the arguments fails.</exception>
-		/// <remarks><a href="https://dev.twitch.tv/docs/api/reference/#ban-user">Check out the Twitch API Reference docs.</a></remarks>
-		Task<ResponseBase<BanUser>?> BanUser(string broadcasterId, string userId, uint? durationSeconds, string? reason = null, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Removes the ban or timeout that was placed on the specified user.
-		/// </summary>
-		/// <param name="broadcasterId">The ID of the broadcaster whose chat room the user is banned/timed-out from chatting in.</param>
-		/// <param name="userId">The ID of the user to remove the ban or timeout from.</param>
-		/// <param name="cancellationToken">CancellationToken that can be used to cancel the call</param>
-		/// <returns>Boolean indicating whether the request was successful or not</returns>
-		/// <exception cref="TwitchNotAuthenticatedException">Gets thrown when the user isn't authenticated, either make sure the user is logged in or try again later.</exception>
-		/// <remarks><a href="https://dev.twitch.tv/docs/api/reference/#unban-user">Check out the Twitch API Reference docs.</a></remarks>
-		Task<bool> UnbanUser(string broadcasterId, string userId, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Sends an announcement to the broadcaster’s chat room.
-		/// </summary>
-		/// <param name="broadcasterId">The ID of the broadcaster that owns the chat room to send the announcement to.</param>
-		/// <param name="message">The announcement to make in the broadcaster’s chat room. Announcements are limited to a maximum of 500 characters; announcements longer than 500 characters are truncated.</param>
-		/// <param name="color">The color used to highlight the announcement. Possible case-sensitive values are:
-		/// <list type="bullet">
-		/// <item><description><see cref="SendChatAnnouncementColor.Primary"/></description></item>
-		/// <item><description><see cref="SendChatAnnouncementColor.Blue"/></description></item>
-		/// <item><description><see cref="SendChatAnnouncementColor.Green"/></description></item>
-		/// <item><description><see cref="SendChatAnnouncementColor.Orange"/></description></item>
-		/// <item><description><see cref="SendChatAnnouncementColor.Purple"/></description></item>
-		/// </list>
-		/// If color is set to primary or is not set, then the channel’s accent color is used to highlight the announcement.
-		/// </param>
-		/// <param name="cancellationToken">CancellationToken that can be used to cancel the call</param>
-		/// <returns>Boolean indicating whether the request was successful or not</returns>
-		/// <exception cref="TwitchNotAuthenticatedException">Gets thrown when the user isn't authenticated, either make sure the user is logged in or try again later.</exception>
-		/// <exception cref="ArgumentOutOfRangeException">Gets thrown when an invalid color enum is passed in.</exception>
-		/// <remarks><a href="https://dev.twitch.tv/docs/api/reference/#send-chat-announcement">Check out the Twitch API Reference docs.</a></remarks>
-		Task<bool> SendChatAnnouncement(string broadcasterId, string message, SendChatAnnouncementColor color = SendChatAnnouncementColor.Primary, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Removes a single chat message or all chat messages from the broadcaster’s chat room.
-		/// </summary>
-		/// <param name="broadcasterId"></param>
-		/// <param name="messageId">The ID of the message to remove. The id tag in the PRIVMSG tag contains the message’s ID.
-		/// <list type="bullet">
-		/// <item><description>The message must have been created within the last 6 hours.</description></item>
-		/// <item><description>The message must not belong to the broadcaster.</description></item>
-		/// <item><description>The message must not belong to another moderator.</description></item>
-		/// </list>
-		/// If not specified, the request removes all messages in the broadcaster’s chat room.
-		/// </param>
-		/// <param name="cancellationToken">CancellationToken that can be used to cancel the call</param>
-		/// <returns>Boolean indicating whether the request was successful or not</returns>
-		/// <exception cref="TwitchNotAuthenticatedException">Gets thrown when the user isn't authenticated, either make sure the user is logged in or try again later.</exception>
-		/// <remarks><a href="https://dev.twitch.tv/docs/api/reference/#delete-chat-messages">Check out the Twitch API Reference docs.</a></remarks>
-		Task<bool> DeleteChatMessages(string broadcasterId, string? messageId = null, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Gets the color used for the user’s name in chat.
-		/// </summary>
-		/// <param name="userIds">The Ids of the users whose username color you want to get.</param>
-		/// <param name="cancellationToken">CancellationToken that can be used to cancel the call</param>
-		/// <returns>Response containing information about the chat color of the requested users.</returns>
-		/// <exception cref="TwitchNotAuthenticatedException">Gets thrown when the user isn't authenticated, either make sure the user is logged in or try again later.</exception>
-		/// <exception cref="ArgumentException">Gets thrown when validation regarding one of the arguments fails.</exception>
-		/// <remarks><a href="https://dev.twitch.tv/docs/api/reference/#get-user-chat-color">Check out the Twitch API Reference docs.</a></remarks>
-		Task<ResponseBase<UserChatColorData>?> GetUserChatColor(string[] userIds, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Updates the color used for the user’s name in chat.
-		/// </summary>
-		/// <param name="color">The color to use for the user’s name in chat. All users may specify one of the following named color values:
-		/// <list type="bullet">
-		/// <item><description><see cref="UserChatColor.Blue"/></description></item>
-		/// <item><description><see cref="UserChatColor.BlueViolet"/></description></item>
-		/// <item><description><see cref="UserChatColor.CadetBlue"/></description></item>
-		/// <item><description><see cref="UserChatColor.Chocolate"/></description></item>
-		/// <item><description><see cref="UserChatColor.Coral"/></description></item>
-		/// <item><description><see cref="UserChatColor.DodgerBlue"/></description></item>
-		/// <item><description><see cref="UserChatColor.Firebrick"/></description></item>
-		/// <item><description><see cref="UserChatColor.GoldenRod"/></description></item>
-		/// <item><description><see cref="UserChatColor.Green"/></description></item>
-		/// <item><description><see cref="UserChatColor.HotPink"/></description></item>
-		/// <item><description><see cref="UserChatColor.OrangeRed"/></description></item>
-		/// <item><description><see cref="UserChatColor.Red"/></description></item>
-		/// <item><description><see cref="UserChatColor.SeaGreen"/></description></item>
-		/// <item><description><see cref="UserChatColor.SpringGreen"/></description></item>
-		/// <item><description><see cref="UserChatColor.YellowGreen"/></description></item>
-		/// </list>
-		/// </param>
-		/// <param name="cancellationToken">CancellationToken that can be used to cancel the call</param>
-		/// <returns>Boolean indicating whether the request was successful or not</returns>
-		/// <exception cref="TwitchNotAuthenticatedException">Gets thrown when the user isn't authenticated, either make sure the user is logged in or try again later.</exception>
-		/// <exception cref="ArgumentOutOfRangeException">Gets thrown when an invalid color enum is passed in.</exception>
-		/// <remarks><a href="https://dev.twitch.tv/docs/api/reference/#update-user-chat-color">Check out the Twitch API Reference docs.</a></remarks>
-		Task<bool> UpdateUserChatColor(UserChatColor color, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Raid another channel by sending the broadcaster’s viewers to the targeted channel.
-		/// The Twitch UX will pop up a window at the top of the chat room that identifies the number of viewers in the raid.
-		/// The raid occurs when the broadcaster clicks Raid Now or after the 90-second countdown expires.
-		/// </summary>
-		/// <param name="targetBroadcasterId">The ID of the broadcaster to raid.</param>
-		/// <param name="cancellationToken">CancellationToken that can be used to cancel the call</param>
-		/// <returns>Response containing information about the raid that got initiated.</returns>
-		/// <exception cref="TwitchNotAuthenticatedException">Gets thrown when the user isn't authenticated, either make sure the user is logged in or try again later.</exception>
-		/// <exception cref="ArgumentException">Gets thrown when validation regarding one of the arguments fails.</exception>
-		/// <remarks><a href="https://dev.twitch.tv/docs/api/reference/#start-a-raid">Check out the Twitch API Reference docs.</a></remarks>
-		Task<ResponseBase<StartRaidData>?> StartRaid(string targetBroadcasterId, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Cancel a pending raid.
-		/// You can cancel a raid at any point up until the broadcaster clicks Raid Now in the Twitch UX or the 90-second countdown expires.
-		/// </summary>
-		/// <param name="cancellationToken">CancellationToken that can be used to cancel the call</param>
-		/// <returns>Boolean indicating whether the request was successful or not</returns>
-		/// <exception cref="TwitchNotAuthenticatedException">Gets thrown when the user isn't authenticated, either make sure the user is logged in or try again later.</exception>
-		/// <remarks><a href="https://dev.twitch.tv/docs/api/reference/#cancel-a-raid">Check out the Twitch API Reference docs.</a></remarks>
-		Task<bool> CancelRaid(CancellationToken cancellationToken = default);
-
-		/// <summary>
 		/// Get information about all polls or specific polls for a Twitch channel. Poll information is available for 90 days.
 		/// </summary>
 		/// <param name="pollIds">Filters results to one or more specific polls. Not providing one or more IDs will return the full list of polls for the authenticated channel. Maximum: 100</param>
@@ -274,25 +87,8 @@ namespace CatCore.Services.Twitch.Interfaces
 		/// <exception cref="TwitchNotAuthenticatedException">Gets thrown when the user isn't authenticated, either make sure the user is logged in or try again later.</exception>
 		/// <exception cref="ArgumentException">Gets thrown when validation regarding one of the arguments fails.</exception>
 		/// <remarks><a href="https://dev.twitch.tv/docs/api/reference#create-poll">Check out the Twitch API Reference docs.</a></remarks>
-		[Obsolete("This method is deprecated, please use the CreatePoll(string title, List<string> choices, uint duration, bool? channelPointsVotingEnabled = null, uint? channelPointsPerVote = null, CancellationToken cancellationToken = default) method instead.", true)]
 		Task<ResponseBase<PollData>?> CreatePoll(string title, List<string> choices, uint duration, bool? bitsVotingEnabled = null, uint? bitsPerVote = null,
 			bool? channelPointsVotingEnabled = null, uint? channelPointsPerVote = null, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Create a poll for a specific Twitch channel.
-		/// </summary>
-		/// <param name="title">Question displayed for the poll. Maximum: 60 characters.</param>
-		/// <param name="choices">Array of possible poll choices. Minimum: 2 choices. Maximum: 5 choices.</param>
-		/// <param name="duration">Total duration for the poll (in seconds). Minimum: 15. Maximum: 1800.</param>
-		/// <param name="channelPointsVotingEnabled">Indicates if Channel Points can be used for voting.</param>
-		/// <param name="channelPointsPerVote">Number of Channel Points required to vote once with Channel Points. Minimum: 1. Maximum: 1000000.</param>
-		/// <param name="cancellationToken">CancellationToken that can be used to cancel the call</param>
-		/// <returns>Response containing data of the newly created poll</returns>
-		/// <exception cref="TwitchNotAuthenticatedException">Gets thrown when the user isn't authenticated, either make sure the user is logged in or try again later.</exception>
-		/// <exception cref="ArgumentException">Gets thrown when validation regarding one of the arguments fails.</exception>
-		/// <remarks><a href="https://dev.twitch.tv/docs/api/reference#create-poll">Check out the Twitch API Reference docs.</a></remarks>
-		Task<ResponseBase<PollData>?> CreatePoll(string title, List<string> choices, uint duration, bool? channelPointsVotingEnabled = null, uint? channelPointsPerVote = null,
-			CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// End a poll that is currently active.
@@ -419,7 +215,7 @@ namespace CatCore.Services.Twitch.Interfaces
 		/// A language value must be either the <a href="https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes">ISO 639-1</a> two-letter code for a
 		/// <a href="https://help.twitch.tv/s/article/languages-on-twitch#streamlang">supported stream language</a> or “other”.
 		/// </param>
-		/// <param name="limit">Maximum number of results to return. Maximum: 100. Default: 20.</param>
+		/// <param name="limit">Maximum number of results to return. Maximum: 100 Default: 20</param>
 		/// <param name="continuationCursorBefore">Cursor for backward pagination: tells the server where to start fetching the next set of results, in a multi-page response</param>
 		/// <param name="continuationCursorAfter">Cursor for forward pagination: tells the server where to start fetching the next set of results, in a multi-page response</param>
 		/// <param name="cancellationToken">CancellationToken that can be used to cancel the call</param>

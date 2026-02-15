@@ -11,6 +11,7 @@ using CatCore.Models.EventArgs;
 using CatCore.Models.Shared;
 using CatCore.Models.Twitch;
 using CatCore.Models.Twitch.IRC;
+using CatCore.Models.Twitch.Media;
 using CatCore.Models.Twitch.OAuth;
 using CatCore.Services.Interfaces;
 using CatCore.Services.Twitch.Interfaces;
@@ -34,11 +35,11 @@ namespace CatCore.Services.Twitch
 		private readonly ILogger _logger;
 		private readonly IKittenWebSocketProvider _kittenWebSocketProvider;
 		private readonly IKittenPlatformActiveStateManager _activeStateManager;
+		private readonly IKittenSettingsService _settingsService;
 		private readonly ITwitchAuthService _twitchAuthService;
 		private readonly ITwitchChannelManagementService _twitchChannelManagementService;
 		private readonly ITwitchRoomStateTrackerService _roomStateTrackerService;
 		private readonly ITwitchUserStateTrackerService _userStateTrackerService;
-		private readonly TwitchEmoteDetectionHelper _twitchEmoteDetectionHelper;
 		private readonly TwitchMediaDataProvider _twitchMediaDataProvider;
 
 		private readonly Dictionary<string, string> _channelNameToChannelIdDictionary;
@@ -55,18 +56,18 @@ namespace CatCore.Services.Twitch
 		private CancellationTokenSource? _messageQueueProcessorCancellationTokenSource;
 		private ValidationResponse? _loggedInUser;
 
-		public TwitchIrcService(ILogger logger, IKittenWebSocketProvider kittenWebSocketProvider, IKittenPlatformActiveStateManager activeStateManager, ITwitchAuthService twitchAuthService,
-			ITwitchChannelManagementService twitchChannelManagementService, ITwitchRoomStateTrackerService roomStateTrackerService, ITwitchUserStateTrackerService userStateTrackerService,
-			TwitchEmoteDetectionHelper twitchEmoteDetectionHelper, TwitchMediaDataProvider twitchMediaDataProvider)
+		public TwitchIrcService(ILogger logger, IKittenWebSocketProvider kittenWebSocketProvider, IKittenPlatformActiveStateManager activeStateManager, IKittenSettingsService settingsService,
+			ITwitchAuthService twitchAuthService, ITwitchChannelManagementService twitchChannelManagementService, ITwitchRoomStateTrackerService roomStateTrackerService,
+			ITwitchUserStateTrackerService userStateTrackerService, TwitchMediaDataProvider twitchMediaDataProvider)
 		{
 			_logger = logger;
 			_kittenWebSocketProvider = kittenWebSocketProvider;
 			_activeStateManager = activeStateManager;
+			_settingsService = settingsService;
 			_twitchAuthService = twitchAuthService;
 			_twitchChannelManagementService = twitchChannelManagementService;
 			_roomStateTrackerService = roomStateTrackerService;
 			_userStateTrackerService = userStateTrackerService;
-			_twitchEmoteDetectionHelper = twitchEmoteDetectionHelper;
 			_twitchMediaDataProvider = twitchMediaDataProvider;
 
 			_twitchAuthService.OnCredentialsChanged += TwitchAuthServiceOnOnCredentialsChanged;
@@ -115,6 +116,12 @@ namespace CatCore.Services.Twitch
 		private async Task StartInternal()
 		{
 			using var _ = await Synchronization.LockAsync(_connectionLockerSemaphoreSlim);
+			if (!_settingsService.Config.TwitchConfig.Enabled)
+			{
+				_logger.Information("Twitch IRC start skipped: twitch config disabled");
+				return;
+			}
+
 			if (!_twitchAuthService.HasTokens)
 			{
 				return;
@@ -153,7 +160,7 @@ namespace CatCore.Services.Twitch
 		{
 			if (_twitchAuthService.HasTokens)
 			{
-				if (_activeStateManager.GetState(PlatformType.Twitch))
+				if (_activeStateManager.GetState(PlatformType.Twitch) && _settingsService.Config.TwitchConfig.Enabled)
 				{
 					_logger.Verbose("(Re)start requested by credential changes");
 					await StartInternal().ConfigureAwait(false);
@@ -167,10 +174,8 @@ namespace CatCore.Services.Twitch
 
 		private void TwitchChannelManagementServiceOnChannelsUpdated(object sender, TwitchChannelsUpdatedEventArgs e)
 		{
-			if (_activeStateManager.GetState(PlatformType.Twitch))
+			if (_activeStateManager.GetState(PlatformType.Twitch) && _settingsService.Config.TwitchConfig.Enabled)
 			{
-				SendChannelConnectionOperation(_webSocketConnection, IrcCommands.PART, e.DisabledChannels.Values!);
-
 				foreach (var disabledChannel in e.DisabledChannels)
 				{
 					_webSocketConnection?.SendMessageFireAndForget($"PART #{disabledChannel.Value}");
@@ -179,9 +184,8 @@ namespace CatCore.Services.Twitch
 				foreach (var enabledChannel in e.EnabledChannels)
 				{
 					_channelNameToChannelIdDictionary[enabledChannel.Value] = enabledChannel.Key;
+					_webSocketConnection?.SendMessageFireAndForget($"JOIN #{enabledChannel.Value}");
 				}
-
-				SendChannelConnectionOperation(_webSocketConnection, IrcCommands.JOIN, e.EnabledChannels.Values!);
 			}
 		}
 
@@ -224,19 +228,26 @@ namespace CatCore.Services.Twitch
 			uint messageCount = 0;
 #endif
 
-			void HandleSingleMessage(ReadOnlySpan<char> singleMessageAsSpan)
+			var rawMessageAsSpan = rawMessage.AsSpan();
+			var endPosition = 0;
+			do
 			{
+				var startPosition = endPosition;
+				while (endPosition + 1 < rawMessageAsSpan.Length)
+				{
+					if (rawMessageAsSpan[endPosition] == '\r' && rawMessageAsSpan[endPosition + 1] == '\n')
+					{
+						break;
+					}
+
+					endPosition++;
+				}
+
 				// Handle IRC messages here
-				IrcExtensions.ParseIrcMessage(
-					singleMessageAsSpan,
-					out var tags,
-					out var prefix,
-					out var commandType,
-					out var channelName,
-					out var message);
+				IrcExtensions.ParseIrcMessage(rawMessageAsSpan.Slice(startPosition, endPosition - startPosition), out var tags, out var prefix, out var commandType, out var channelName, out var message);
 
 #if DEBUG
-				_logger.Verbose("{MessageTemplate}", singleMessageAsSpan.ToString());
+				_logger.Verbose("{MessageTemplate}", rawMessageAsSpan.Slice(startPosition, endPosition - startPosition).ToString());
 
 				_logger.Verbose("Tags count: {Tags}", tags?.Count.ToString() ?? "N/A");
 				_logger.Verbose("Prefix: {Prefix}", prefix ?? "N/A");
@@ -251,28 +262,9 @@ namespace CatCore.Services.Twitch
 #if !RELEASE
 				messageCount++;
 #endif
-			}
 
-			var rawMessageAsSpan = rawMessage.AsSpan();
-			while (true)
-			{
-
-				var messageSeparatorPosition = rawMessageAsSpan.IndexOf("\r\n".AsSpan());
-				if (messageSeparatorPosition == -1)
-				{
-					if (rawMessageAsSpan.Length > 0)
-					{
-						HandleSingleMessage(rawMessageAsSpan);
-					}
-
-					break;
-				}
-
-				// Handle IRC messages here
-				HandleSingleMessage(rawMessageAsSpan.Slice(0, messageSeparatorPosition));
-
-				rawMessageAsSpan = rawMessageAsSpan.Slice(messageSeparatorPosition + 2);
-			}
+				endPosition += 2;
+			} while (endPosition < rawMessageAsSpan.Length);
 
 #if !RELEASE
 			stopwatch.Stop();
@@ -296,14 +288,11 @@ namespace CatCore.Services.Twitch
 					break;
 				case IrcCommands.RPL_ENDOFMOTD:
 					OnChatConnected?.Invoke();
-
-					var activeChannelsAsDictionary = _twitchChannelManagementService.GetAllActiveChannelsAsDictionary();
-					foreach (var channel in activeChannelsAsDictionary)
+					foreach (var channel in _twitchChannelManagementService.GetAllActiveChannelsAsDictionary())
 					{
 						_channelNameToChannelIdDictionary[channel.Value] = channel.Key;
+						webSocketConnection.SendMessageFireAndForget($"JOIN #{channel.Value}");
 					}
-
-					SendChannelConnectionOperation(webSocketConnection, IrcCommands.JOIN, activeChannelsAsDictionary.Values!);
 
 					_messageQueueProcessorCancellationTokenSource?.Cancel();
 					_messageQueueProcessorCancellationTokenSource = new CancellationTokenSource();
@@ -399,26 +388,6 @@ namespace CatCore.Services.Twitch
 			}
 		}
 
-		private static void SendChannelConnectionOperation(WebSocketConnection? webSocketConnection, string command, ICollection<string> channels)
-		{
-			if (webSocketConnection == null || channels.Count == 0)
-			{
-				return;
-			}
-
-			var channelOperationMessageBuilder = new StringBuilder(command).Append(' ');
-			for (var i = 0; i < channels.Count; i++)
-			{
-				channelOperationMessageBuilder.Append('#').Append(channels.ElementAt(i));
-				if (i < channels.Count - 1)
-				{
-					channelOperationMessageBuilder.Append(',');
-				}
-			}
-
-			webSocketConnection.SendMessageFireAndForget(channelOperationMessageBuilder.ToString());
-		}
-
 		// ReSharper disable once CognitiveComplexity
 		// ReSharper disable once CyclomaticComplexity
 		private void HandlePrivMessage(ref ReadOnlyDictionary<string, string>? messageMeta, ref string? prefix, ref string commandType, ref string? channelName, ref string? message,
@@ -441,10 +410,10 @@ namespace CatCore.Services.Twitch
 			// Determine channelId
 			var channelId = messageMeta != null && messageMeta.TryGetValue(IrcMessageTags.ROOM_ID, out var roomId)
 				? roomId
-				: _channelNameToChannelIdDictionary[channelName];
+				: _channelNameToChannelIdDictionary[channelName!];
 
 			// Create Channel object
-			var channel = new TwitchChannel(this, channelId, channelName);
+			var channel = new TwitchChannel(this, channelId, channelName!);
 
 			var globalUserState = _userStateTrackerService.GlobalUserState;
 			var userState = _userStateTrackerService.GetUserState(channelId);
@@ -606,9 +575,7 @@ namespace CatCore.Services.Twitch
 				message = string.Empty;
 			}
 
-			var emotes = message.Length > 0
-				? _twitchEmoteDetectionHelper.ExtractEmoteInfo(message, messageMeta, channelId, bits)
-				: new List<IChatEmote>(0);
+			var emotes = message.Length > 0 ? ExtractEmoteInfo(message, messageMeta, channelId, bits) : new List<IChatEmote>(0);
 
 			OnMessageReceived?.Invoke(new TwitchMessage(
 				messageId,
@@ -623,6 +590,124 @@ namespace CatCore.Services.Twitch
 				commandType,
 				bits
 			));
+		}
+
+		// TODO: Look into moving this logic into its own class
+		private List<IChatEmote> ExtractEmoteInfo(string message, IReadOnlyDictionary<string, string>? messageMeta, string channelId, uint bits)
+		{
+			var emotes = new List<IChatEmote>();
+
+			var twitchConfig = _settingsService.Config.TwitchConfig;
+			if (twitchConfig.ParseTwitchEmotes && messageMeta != null)
+			{
+				ExtractTwitchEmotes(emotes, message, messageMeta);
+			}
+
+			if (_settingsService.Config.GlobalConfig.HandleEmojis)
+			{
+				ExtractEmojis(emotes, message);
+			}
+
+			ExtractOtherEmotes(emotes, message, channelId, twitchConfig.ParseCheermotes && bits > 0, twitchConfig.ParseBttvEmotes || twitchConfig.ParseFfzEmotes);
+
+			return emotes;
+		}
+
+		private static void ExtractTwitchEmotes(List<IChatEmote> emotes, string message, IReadOnlyDictionary<string, string> messageMeta)
+		{
+			if (!messageMeta.TryGetValue(IrcMessageTags.EMOTES, out var emotesString))
+			{
+				return;
+			}
+
+			var emoteGroup = emotesString.Split('/');
+			for (var i = 0; i < emoteGroup.Length; i++)
+			{
+				var emoteSet = emoteGroup[i].Split(':');
+				var emoteId = emoteSet[0];
+
+				var emotePlaceholders = emoteSet[1].Split(',');
+
+				for (var j = 0; j < emotePlaceholders.Length; j++)
+				{
+					var emoteMeta = emotePlaceholders[j].Split('-');
+					var emoteStart = int.Parse(emoteMeta[0]);
+					var emoteEnd = int.Parse(emoteMeta[1]);
+
+					emotes.Add(new TwitchEmote("TwitchEmote_" + emoteId, message.Substring(emoteStart, emoteEnd + 1 - emoteStart), emoteStart, emoteEnd,
+						$"https://static-cdn.jtvnw.net/emoticons/v2/{emoteId}/static/dark/3.0"));
+				}
+			}
+		}
+
+		private static void ExtractEmojis(List<IChatEmote> emotes, string message)
+		{
+			for (var i = 0; i < message.Length; i++)
+			{
+				var foundEmojiLeaf = Twemoji.Emojis.EmojiReferenceData.LookupLeaf(message, i);
+				if (foundEmojiLeaf != null)
+				{
+					emotes.Add(new Emoji(foundEmojiLeaf.Key, foundEmojiLeaf.Key, i, i += foundEmojiLeaf.Depth, foundEmojiLeaf.Url));
+				}
+			}
+		}
+
+		// ReSharper disable once CognitiveComplexity
+		private void ExtractOtherEmotes(List<IChatEmote> emotes, string message, string channelId, bool parseCheermotes, bool parseCustomEmotes)
+		{
+			if (!parseCheermotes && !parseCustomEmotes)
+			{
+				return;
+			}
+
+			void ExtractOtherEmotesInternal(int messageStartIndex, int messageEndIndex)
+			{
+				var currentWordBuilder = new StringBuilder();
+				for (var i = messageStartIndex; i <= messageEndIndex; i++)
+				{
+					if (i == messageEndIndex || char.IsWhiteSpace(message[i]))
+					{
+						if (currentWordBuilder.Length <= 0)
+						{
+							continue;
+						}
+
+						var currentWord = currentWordBuilder.ToString();
+
+						if (parseCustomEmotes && _twitchMediaDataProvider.TryGetThirdPartyEmote(currentWord, channelId, out var customEmote))
+						{
+							var startIndex = i - currentWord.Length;
+							var endIndex = i - 1;
+
+							emotes.Add(new TwitchEmote(customEmote!.Id, customEmote.Name, startIndex, endIndex, customEmote.Url, customEmote.IsAnimated));
+						}
+						else if (parseCheermotes && _twitchMediaDataProvider.TryGetCheermote(currentWord, channelId, out var emoteBits, out var cheermoteData))
+						{
+							var startIndex = i - currentWord.Length;
+							var endIndex = i - 1;
+
+							emotes.Add(new TwitchEmote(cheermoteData!.Id, cheermoteData.Name, startIndex, endIndex, cheermoteData.Url, cheermoteData.IsAnimated, emoteBits, cheermoteData.Color));
+						}
+
+						currentWordBuilder.Clear();
+					}
+					else
+					{
+						currentWordBuilder.Append(message[i]);
+					}
+				}
+			}
+
+			var orderedEmotesList = emotes.OrderBy(x => x.StartIndex).ToList();
+			var loopStartIndex = 0;
+			foreach (var referenceEmote in orderedEmotesList)
+			{
+				ExtractOtherEmotesInternal(loopStartIndex, referenceEmote.StartIndex - 1);
+
+				loopStartIndex = referenceEmote.EndIndex + 2;
+			}
+
+			ExtractOtherEmotesInternal(loopStartIndex, message.Length);
 		}
 
 		// ReSharper disable once CognitiveComplexity

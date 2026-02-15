@@ -1,9 +1,13 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace CatCore.Models.Config
 {
 	internal sealed class TwitchConfig
 	{
+		[JsonPropertyName("Enabled")]
+		public bool Enabled { get; set; } = true;
+
 		public bool OwnChannelEnabled { get; set; } = true;
 
 		public Dictionary<string, string> AdditionalChannelsData { get; set; } = new Dictionary<string, string>();

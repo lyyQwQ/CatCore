@@ -5,6 +5,8 @@ namespace CatCore.Models.Api.Requests
 {
 	internal readonly struct TwitchStateRequestDto
 	{
+		public bool Enabled { get; }
+
 		public bool SelfEnabled { get; }
 
 		/// <remark>
@@ -18,8 +20,9 @@ namespace CatCore.Models.Api.Requests
 		public bool ParseCheermotes { get; }
 
 		[JsonConstructor]
-		public TwitchStateRequestDto(bool selfEnabled, Dictionary<string, string> additionalChannelsData, bool parseBttvEmotes, bool parseFfzEmotes, bool parseTwitchEmotes, bool parseCheermotes)
+		public TwitchStateRequestDto(bool enabled, bool selfEnabled, Dictionary<string, string> additionalChannelsData, bool parseBttvEmotes, bool parseFfzEmotes, bool parseTwitchEmotes, bool parseCheermotes)
 		{
+			Enabled = enabled;
 			SelfEnabled = selfEnabled;
 			AdditionalChannelsData = additionalChannelsData;
 			ParseBttvEmotes = parseBttvEmotes;

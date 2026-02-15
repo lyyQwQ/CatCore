@@ -43,18 +43,14 @@ namespace CatCore.Models.Twitch.Helix.Responses
 		public string ThumbnailUrl { get; }
 
 		[JsonPropertyName("tag_ids")]
-		[Obsolete("TagIds is deprecated by Twitch and will only contain an empty list. Use the Tags property instead which can contain custom tags. Will be removed in the next major version of CatCore")]
 		public IReadOnlyList<string> TagIds { get; }
-
-		[JsonPropertyName("tags")]
-		public IReadOnlyList<string> Tags { get; }
 
 		[JsonPropertyName("is_mature")]
 		public bool IsMature { get; }
 
 		[JsonConstructor]
 		public Stream(string id, string userId, string loginName, string displayName, string gameId, string gameName, string type, string title, uint viewerCount, DateTimeOffset startedAt,
-			string language, string thumbnailUrl, IReadOnlyList<string> tags, bool isMature)
+			string language, string thumbnailUrl, IReadOnlyList<string> tagIds, bool isMature)
 		{
 			Id = id;
 			UserId = userId;
@@ -68,10 +64,7 @@ namespace CatCore.Models.Twitch.Helix.Responses
 			StartedAt = startedAt;
 			Language = language;
 			ThumbnailUrl = thumbnailUrl;
-#pragma warning disable CS0618
-			TagIds = new List<string>(0);
-#pragma warning restore CS0618
-			Tags = tags;
+			TagIds = tagIds;
 			IsMature = isMature;
 		}
 	}

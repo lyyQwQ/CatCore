@@ -35,7 +35,7 @@ namespace CatCore.Services.Twitch
 			_logger = logger;
 			_twitchAuthService = twitchAuthService;
 
-			_helixClient = new HttpClient(new TwitchHelixClientHandler(twitchAuthService)) { BaseAddress = new Uri(TWITCH_HELIX_BASEURL, UriKind.Absolute) };
+			_helixClient = new HttpClient(new TwitchHelixClientHandler(twitchAuthService)) {BaseAddress = new Uri(TWITCH_HELIX_BASEURL, UriKind.Absolute)};
 			_helixClient.DefaultRequestHeaders.UserAgent.TryParseAdd($"{nameof(CatCore)}/{libraryVersion.ToString(3)}");
 			_helixClient.DefaultRequestHeaders.TryAddWithoutValidation("Client-ID", constants.TwitchClientId);
 
@@ -69,7 +69,6 @@ namespace CatCore.Services.Twitch
 
 			var exceptionRetryPolicy = Policy<HttpResponseMessage>
 				.Handle<HttpRequestException>()
-				.OrResult(resp => resp.StatusCode == HttpStatusCode.Conflict)
 				.WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromMilliseconds(2 ^ (retryAttempt - 1) * 500));
 
 			var bulkheadPolicy = Policy.BulkheadAsync<HttpResponseMessage>(4, 1000);
@@ -83,38 +82,7 @@ namespace CatCore.Services.Twitch
 			return loggedInUser ?? throw new TwitchNotAuthenticatedException();
 		}
 
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private Task<TResponse?> GetAsync<TResponse>(string url, JsonTypeInfo<TResponse> jsonResponseTypeInfo, CancellationToken cancellationToken = default) where TResponse : struct
-			=> CallEndpointNoBodyExpectBody(HttpMethod.Get, url, jsonResponseTypeInfo, cancellationToken);
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private Task<TResponse?> PostAsync<TResponse, TBody>(string url, TBody body, JsonTypeInfo<TBody> jsonRequestTypeInfo, JsonTypeInfo<TResponse> jsonResponseTypeInfo, CancellationToken cancellationToken = default)
-			where TResponse : struct => CallEndpointWithBodyExpectBody(HttpMethod.Post, url, body, jsonRequestTypeInfo, jsonResponseTypeInfo, cancellationToken);
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private Task<TResponse?> PostAsync<TResponse>(string url, JsonTypeInfo<TResponse> jsonResponseTypeInfo, CancellationToken cancellationToken = default)
-			where TResponse : struct => CallEndpointNoBodyExpectBody(HttpMethod.Post, url, jsonResponseTypeInfo, cancellationToken);
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private Task<bool> PostAsync<TBody>(string url, TBody body, JsonTypeInfo<TBody> jsonRequestTypeInfo, CancellationToken cancellationToken = default)
-			=> CallEndpointWithBodyNoBody(HttpMethod.Post, url, body, jsonRequestTypeInfo, cancellationToken);
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private Task<bool> PutAsync(string url, CancellationToken cancellationToken = default) => CallEndpointNoBodyNoBody(HttpMethod.Put, url, cancellationToken);
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private Task<TResponse?> PatchAsync<TResponse, TBody>(string url, TBody body, JsonTypeInfo<TBody> jsonRequestTypeInfo, JsonTypeInfo<TResponse> jsonResponseTypeInfo, CancellationToken cancellationToken = default)
-			where TResponse : struct => CallEndpointWithBodyExpectBody(HttpMethodPatch, url, body, jsonRequestTypeInfo, jsonResponseTypeInfo, cancellationToken);
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private Task<bool> PatchAsync<TBody>(string url, TBody body, JsonTypeInfo<TBody> jsonRequestTypeInfo, CancellationToken cancellationToken = default)
-			=> CallEndpointWithBodyNoBody(HttpMethodPatch, url, body, jsonRequestTypeInfo, cancellationToken);
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private Task<bool> DeleteAsync(string url, CancellationToken cancellationToken = default) => CallEndpointNoBodyNoBody(HttpMethod.Delete, url, cancellationToken);
-
-		private async Task<TResponse?> CallEndpointNoBodyExpectBody<TResponse>(HttpMethod httpMethod, string url, JsonTypeInfo<TResponse> jsonResponseTypeInfo, CancellationToken cancellationToken = default)
-			where TResponse : struct
+		private async Task<TResponse?> GetAsync<TResponse>(string url, JsonTypeInfo<TResponse> jsonResponseTypeInfo, CancellationToken cancellationToken = default) where TResponse : struct
 		{
 #if DEBUG
 			if (string.IsNullOrWhiteSpace(url))
@@ -122,41 +90,25 @@ namespace CatCore.Services.Twitch
 				throw new ArgumentNullException(nameof(url));
 			}
 
-			_logger.Verbose("Invoking Helix endpoint {HttpVerb} {Url}", httpMethod, url);
+			_logger.Verbose("Invoking Helix endpoint GET {Url}", url);
 #endif
 			if (!_twitchAuthService.HasTokens)
 			{
 				_logger.Warning("Token not valid. Either the user is not logged in or the token has been revoked");
-				return default;
+				return null;
 			}
 
 			if (!_twitchAuthService.TokenIsValid && !await _twitchAuthService.RefreshTokens().ConfigureAwait(false))
 			{
-				return default;
+				return null;
 			}
 
 			try
 			{
 				using var httpResponseMessage = await _combinedHelixPolicy
-					.ExecuteAsync(async ct =>
-					{
-						using var httpRequestMessage = new HttpRequestMessage(httpMethod, url);
-						return await _helixClient.SendAsync(httpRequestMessage, HttpCompletionOption.ResponseHeadersRead, ct);
-					}, cancellationToken).ConfigureAwait(false);
-				if (httpResponseMessage == null)
+					.ExecuteAsync(ct => _helixClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct), cancellationToken).ConfigureAwait(false);
+				if (!(httpResponseMessage?.IsSuccessStatusCode ?? false))
 				{
-					return null;
-				}
-
-				if (!httpResponseMessage.IsSuccessStatusCode)
-				{
-#if DEBUG
-					var errorContent = await httpResponseMessage.Content.ReadAsStringAsync().ConfigureAwait(false);
-					_logger.Warning("Something went wrong while trying to execute the GET call to {Uri}. StatusCode: {StatusCode}. Response: {Response}",
-						url,
-						httpResponseMessage.StatusCode,
-						errorContent);
-#endif
 					return null;
 				}
 
@@ -169,63 +121,22 @@ namespace CatCore.Services.Twitch
 			}
 		}
 
-		private async Task<bool> CallEndpointNoBodyNoBody(HttpMethod httpMethod, string url, CancellationToken cancellationToken = default)
-		{
-#if DEBUG
-			if (string.IsNullOrWhiteSpace(url))
-			{
-				throw new ArgumentNullException(nameof(url));
-			}
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		private Task<TResponse?> PostAsync<TResponse, TBody>(string url, TBody body, JsonTypeInfo<TResponse> jsonResponseTypeInfo, CancellationToken cancellationToken = default)
+			where TResponse : struct => CallEndpointWithBodyExpectBody(HttpMethod.Post, url, body, jsonResponseTypeInfo, cancellationToken);
 
-			_logger.Verbose("Invoking Helix endpoint {HttpVerb} {Url}", httpMethod, url);
-#endif
-			if (!_twitchAuthService.HasTokens)
-			{
-				_logger.Warning("Token not valid. Either the user is not logged in or the token has been revoked");
-				return default;
-			}
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		private Task<bool> PostAsync<TBody>(string url, TBody body, CancellationToken cancellationToken = default) => CallEndpointWithBodyNoBody(HttpMethod.Post, url, body, cancellationToken);
 
-			if (!_twitchAuthService.TokenIsValid && !await _twitchAuthService.RefreshTokens().ConfigureAwait(false))
-			{
-				return default;
-			}
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		private Task<TResponse?> PatchAsync<TResponse, TBody>(string url, TBody body, JsonTypeInfo<TResponse> jsonResponseTypeInfo, CancellationToken cancellationToken = default)
+			where TResponse : struct => CallEndpointWithBodyExpectBody(HttpMethodPatch, url, body, jsonResponseTypeInfo, cancellationToken);
 
-			try
-			{
-				using var httpResponseMessage = await _combinedHelixPolicy.ExecuteAsync(async ct =>
-				{
-					using var httpRequestMessage = new HttpRequestMessage(httpMethod, url);
-					return await _helixClient.SendAsync(httpRequestMessage, HttpCompletionOption.ResponseHeadersRead, ct);
-				}, cancellationToken).ConfigureAwait(false);
-				if (httpResponseMessage == null)
-				{
-					return false;
-				}
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		private Task<bool> PatchAsync<TBody>(string url, TBody body, CancellationToken cancellationToken = default) => CallEndpointWithBodyNoBody(HttpMethodPatch, url, body, cancellationToken);
 
-#if DEBUG
-				if (!httpResponseMessage.IsSuccessStatusCode)
-				{
-					var errorContent = await httpResponseMessage.Content.ReadAsStringAsync().ConfigureAwait(false);
-					_logger.Warning("Something went wrong while trying to execute the {HttpVerb} call to {Uri}. StatusCode: {StatusCode}. Response: {Response}",
-						httpMethod,
-						url,
-						httpResponseMessage.StatusCode,
-						errorContent);
-				}
-#endif
-
-				return httpResponseMessage.IsSuccessStatusCode;
-			}
-			catch (Exception ex)
-			{
-				_logger.Warning(ex, "Something went wrong while trying to execute the {HttpVerb} call to {Uri}", httpMethod, url);
-				return false;
-			}
-		}
-
-		private async Task<TResponse?> CallEndpointWithBodyExpectBody<TResponse, TBody>(HttpMethod httpMethod, string url, TBody body, JsonTypeInfo<TBody> jsonRequestTypeInfo,
-			JsonTypeInfo<TResponse> jsonResponseTypeInfo, CancellationToken cancellationToken = default)
-			where TResponse : struct
+		private async Task<TResponse?> CallEndpointWithBodyExpectBody<TResponse, TBody>(HttpMethod httpMethod, string url, TBody body, JsonTypeInfo<TResponse> jsonResponseTypeInfo,
+			CancellationToken cancellationToken = default) where TResponse : struct
 		{
 #if DEBUG
 			if (string.IsNullOrWhiteSpace(url))
@@ -238,42 +149,29 @@ namespace CatCore.Services.Twitch
 				throw new ArgumentNullException(nameof(body));
 			}
 
-			_logger.Verbose("Invoking Helix endpoint {HttpVerb} {Url}", httpMethod, url);
+			_logger.Verbose("Invoking Helix endpoint POST {Url}", url);
 #endif
 			if (!_twitchAuthService.HasTokens)
 			{
 				_logger.Warning("Token not valid. Either the user is not logged in or the token has been revoked");
-				return default;
+				return null;
 			}
 
 			if (!_twitchAuthService.TokenIsValid && !await _twitchAuthService.RefreshTokens().ConfigureAwait(false))
 			{
-				return default;
+				return null;
 			}
 
 			try
 			{
 				using var httpResponseMessage = await _combinedHelixPolicy.ExecuteAsync(async ct =>
 				{
-					using var jsonContent = JsonContent.Create(body, options: jsonRequestTypeInfo.Options);
-					using var httpRequestMessage = new HttpRequestMessage(httpMethod, url) { Content = jsonContent };
+					using var jsonContent = JsonContent.Create(body);
+					using var httpRequestMessage = new HttpRequestMessage(httpMethod, url) {Content = jsonContent};
 					return await _helixClient.SendAsync(httpRequestMessage, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
 				}, cancellationToken).ConfigureAwait(false);
-				if (httpResponseMessage == null)
+				if (!(httpResponseMessage?.IsSuccessStatusCode ?? false))
 				{
-					return null;
-				}
-
-				if (!httpResponseMessage.IsSuccessStatusCode)
-				{
-#if DEBUG
-					var errorContent = await httpResponseMessage.Content.ReadAsStringAsync().ConfigureAwait(false);
-					_logger.Warning("Something went wrong while trying to execute the {HttpVerb} call to {Uri}. StatusCode: {StatusCode}. Response: {Response}",
-						httpMethod,
-						url,
-						httpResponseMessage.StatusCode,
-						errorContent);
-#endif
 					return null;
 				}
 
@@ -286,7 +184,7 @@ namespace CatCore.Services.Twitch
 			}
 		}
 
-		private async Task<bool> CallEndpointWithBodyNoBody<TBody>(HttpMethod httpMethod, string url, TBody body, JsonTypeInfo<TBody> jsonRequestTypeInfo, CancellationToken cancellationToken = default)
+		private async Task<bool> CallEndpointWithBodyNoBody<TBody>(HttpMethod httpMethod, string url, TBody body, CancellationToken cancellationToken = default)
 		{
 #if DEBUG
 			if (string.IsNullOrWhiteSpace(url))
@@ -299,45 +197,28 @@ namespace CatCore.Services.Twitch
 				throw new ArgumentNullException(nameof(body));
 			}
 
-			_logger.Verbose("Invoking Helix endpoint {HttpVerb} {Url}", httpMethod, url);
+			_logger.Verbose("Invoking Helix endpoint POST {Url}", url);
 #endif
 			if (!_twitchAuthService.HasTokens)
 			{
 				_logger.Warning("Token not valid. Either the user is not logged in or the token has been revoked");
-				return default;
+				return false;
 			}
 
 			if (!_twitchAuthService.TokenIsValid && !await _twitchAuthService.RefreshTokens().ConfigureAwait(false))
 			{
-				return default;
+				return false;
 			}
 
 			try
 			{
 				using var httpResponseMessage = await _combinedHelixPolicy.ExecuteAsync(async ct =>
 				{
-					using var jsonContent = JsonContent.Create(body, options: jsonRequestTypeInfo.Options);
+					using var jsonContent = JsonContent.Create(body);
 					using var httpRequestMessage = new HttpRequestMessage(httpMethod, url) { Content = jsonContent };
 					return await _helixClient.SendAsync(httpRequestMessage, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
 				}, cancellationToken).ConfigureAwait(false);
-				if (httpResponseMessage == null)
-				{
-					return false;
-				}
-
-#if DEBUG
-				if (!httpResponseMessage.IsSuccessStatusCode)
-				{
-					var errorContent = await httpResponseMessage.Content.ReadAsStringAsync().ConfigureAwait(false);
-					_logger.Warning("Something went wrong while trying to execute the {HttpVerb} call to {Uri}. StatusCode: {StatusCode}. Response: {Response}",
-						httpMethod,
-						url,
-						httpResponseMessage.StatusCode,
-						errorContent);
-				}
-#endif
-
-				return httpResponseMessage.IsSuccessStatusCode;
+				return httpResponseMessage?.IsSuccessStatusCode ?? false;
 			}
 			catch (Exception ex)
 			{

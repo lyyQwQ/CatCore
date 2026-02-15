@@ -37,15 +37,11 @@ namespace CatCore.Models.Twitch.Helix.Responses
 		public DateTimeOffset? StartedAt => DateTimeOffset.TryParse(StartedAtRaw, out var parsedValue) ? parsedValue : null;
 
 		[JsonPropertyName("tag_ids")]
-		[Obsolete("TagIds is deprecated by Twitch and will only contain an empty list. Use the Tags property instead which can contain custom tags. Will be removed in the next major version of CatCore")]
 		public List<string> TagIds { get; }
-
-		[JsonPropertyName("tags")]
-		public List<string> Tags { get; }
 
 		[JsonConstructor]
 		public ChannelData(string broadcasterLogin, string broadcasterLanguage, string channelId, string displayName, string gameId, string title, string thumbnailUrl, bool isLive,
-			string startedAtRaw, List<string> tags)
+			string startedAtRaw, List<string> tagIds)
 		{
 			BroadcasterLogin = broadcasterLogin;
 			BroadcasterLanguage = broadcasterLanguage;
@@ -56,10 +52,7 @@ namespace CatCore.Models.Twitch.Helix.Responses
 			ThumbnailUrl = thumbnailUrl;
 			IsLive = isLive;
 			StartedAtRaw = startedAtRaw;
-			Tags = tags;
-#pragma warning disable CS0618 // Type or member is obsolete
-			TagIds = new List<string>(0);
-#pragma warning restore CS0618 // Type or member is obsolete
+			TagIds = tagIds;
 		}
 	}
 }

@@ -1,6 +1,5 @@
 using System;
 using System.Threading.Tasks;
-using CatCore.Models.Credentials;
 using CatCore.Models.Twitch;
 using CatCore.Models.Twitch.IRC;
 using CatCore.Services.Interfaces;
@@ -70,7 +69,7 @@ namespace CatCore.Services.Twitch
 		}
 
 		/// <inheritdoc />
-		public bool LoggedIn => _twitchAuthService is { HasTokens: true, TokenIsValid: true, Status: AuthenticationStatus.Authenticated };
+		public bool LoggedIn => _twitchAuthService.HasTokens && _twitchAuthService.TokenIsValid;
 
 		/// <inheritdoc />
 		public TwitchChannel? DefaultChannel => _twitchChannelManagementService.GetOwnChannel();
@@ -108,7 +107,7 @@ namespace CatCore.Services.Twitch
 		{
 			DeregisterInternalEventHandlers();
 
-			_twitchAuthService.OnAuthenticationStatusChanged += TwitchAuthServiceOnAuthenticatedStatusChanged;
+			_twitchAuthService.OnCredentialsChanged += TwitchAuthServiceOnAuthenticatedStatusChanged;
 
 			_twitchIrcService.OnChatConnected += TwitchIrcServiceOnChatConnected;
 			_twitchIrcService.OnJoinChannel += TwitchIrcServiceOnJoinChannel;
@@ -132,7 +131,7 @@ namespace CatCore.Services.Twitch
 			_twitchIrcService.OnChatCleared -= TwitchIrcServiceOnChatCleared;
 		}
 
-		private void TwitchAuthServiceOnAuthenticatedStatusChanged(AuthenticationStatus _)
+		private void TwitchAuthServiceOnAuthenticatedStatusChanged()
 		{
 			OnAuthenticatedStateChanged?.Invoke(this);
 		}

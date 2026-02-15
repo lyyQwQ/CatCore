@@ -6,12 +6,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using CatCore.Helpers.JSON;
 using CatCore.Models.Twitch.Helix.Requests;
-using CatCore.Models.Twitch.Helix.Requests.Bans;
 using CatCore.Models.Twitch.Helix.Requests.Polls;
 using CatCore.Models.Twitch.Helix.Requests.Predictions;
 using CatCore.Models.Twitch.Helix.Responses;
 using CatCore.Models.Twitch.Helix.Responses.Badges;
-using CatCore.Models.Twitch.Helix.Responses.Bans;
 using CatCore.Models.Twitch.Helix.Responses.Bits.Cheermotes;
 using CatCore.Models.Twitch.Helix.Responses.Emotes;
 using CatCore.Models.Twitch.Helix.Responses.Polls;
@@ -84,11 +82,7 @@ namespace CatCore.Services.Twitch
 			}
 
 			var body = new CreateStreamMarkerRequestDto(userId, description);
-			return await PostAsync(TWITCH_HELIX_BASEURL + "streams/markers", body,
-					TwitchHelixSerializerContext.Default.CreateStreamMarkerRequestDto,
-					TwitchHelixSerializerContext.Default.ResponseBaseCreateStreamMarkerData,
-					cancellationToken)
-				.ConfigureAwait(false);
+			return await PostAsync(TWITCH_HELIX_BASEURL + "streams/markers", body, TwitchHelixSerializerContext.Default.ResponseBaseCreateStreamMarkerData, cancellationToken).ConfigureAwait(false);
 		}
 
 		/// <inheritdoc />
@@ -129,254 +123,6 @@ namespace CatCore.Services.Twitch
 			}
 
 			return await GetAsync(urlBuilder.ToString(), TwitchHelixSerializerContext.Default.ResponseBaseWithPaginationChannelData, cancellationToken).ConfigureAwait(false);
-		}
-
-		/// <inheritdoc />
-		public async Task<ResponseBase<ChatSettings>?> GetChatSettings(string broadcasterId, bool withModeratorPermissions = false, CancellationToken cancellationToken = default)
-		{
-			var loggedInUser = await CheckUserLoggedIn().ConfigureAwait(false);
-
-			var urlBuilder = new StringBuilder(TWITCH_HELIX_BASEURL + "chat/settings?broadcaster_id=" + broadcasterId);
-			if (withModeratorPermissions)
-			{
-				urlBuilder.Append("&moderator_id=").Append(loggedInUser.UserId);
-			}
-
-			return await GetAsync(urlBuilder.ToString(), TwitchHelixSerializerContext.Default.ResponseBaseChatSettings, cancellationToken).ConfigureAwait(false);
-		}
-
-		/// <inheritdoc />
-		// ReSharper disable once CognitiveComplexity
-		public async Task<ResponseBase<ChatSettings>?> UpdateChatSettings(string broadcasterId, bool? emoteMode = null, bool? followerMode = null, uint? followerModeDurationMinutes = null,
-			bool? nonModeratorChatDelay = null, uint? nonModeratorChatDelayDurationSeconds = null, bool? slowMode = null, uint? slowModeWaitTimeSeconds = null, bool? subscriberMode = null,
-			bool? uniqueChatMode = null, CancellationToken cancellationToken = default)
-		{
-			var loggedInUser = await CheckUserLoggedIn().ConfigureAwait(false);
-
-			var urlBuilder = TWITCH_HELIX_BASEURL + "chat/settings?broadcaster_id=" + broadcasterId + "&moderator_id=" + loggedInUser.UserId;
-
-			if (followerModeDurationMinutes != null)
-			{
-				followerMode = true;
-
-				if (followerModeDurationMinutes.Value > 129600)
-				{
-					throw new ArgumentException("The followerModeDurationMinutes parameter should be less than or equal to 129600 (3 months).", nameof(followerModeDurationMinutes));
-				}
-			}
-
-			if (nonModeratorChatDelayDurationSeconds != null)
-			{
-				nonModeratorChatDelay = true;
-
-				if (nonModeratorChatDelayDurationSeconds is not 2 and not 4 and not 6)
-				{
-					throw new ArgumentException("The nonModeratorChatDelayDurationSeconds parameter should be 2, 4 or 6.", nameof(nonModeratorChatDelayDurationSeconds));
-				}
-			}
-
-			if (slowModeWaitTimeSeconds != null)
-			{
-				slowMode = true;
-
-				switch (slowModeWaitTimeSeconds.Value)
-				{
-					case < 3:
-						throw new ArgumentException("The slowModeWaitTimeSeconds parameter should be greater than or equal to 3.", nameof(slowModeWaitTimeSeconds));
-					case > 120:
-						throw new ArgumentException("The slowModeWaitTimeSeconds parameter should be less than or equal to 120.", nameof(slowModeWaitTimeSeconds));
-				}
-			}
-
-			var body = new ChatSettingsRequestDto(emoteMode, followerMode, followerModeDurationMinutes, nonModeratorChatDelay, nonModeratorChatDelayDurationSeconds, slowMode,
-				slowModeWaitTimeSeconds, subscriberMode, uniqueChatMode);
-
-			return await PatchAsync(urlBuilder, body,
-					TwitchHelixSerializerContext.Default.ChatSettingsRequestDto,
-					TwitchHelixSerializerContext.Default.ResponseBaseChatSettings,
-					cancellationToken)
-				.ConfigureAwait(false);
-		}
-
-		/// <inheritdoc />
-		public async Task<ResponseBaseWithPagination<BannedUserInfo>?> GetBannedUsers(string[]? userIds = null, uint? limit = null, string? continuationCursorBefore = null,
-			string? continuationCursorAfter = null, CancellationToken cancellationToken = default)
-		{
-			var loggedInUser = await CheckUserLoggedIn().ConfigureAwait(false);
-
-			var urlBuilder = new StringBuilder(TWITCH_HELIX_BASEURL + "moderation/banned?broadcaster_id=" + loggedInUser.UserId);
-
-			if (limit != null)
-			{
-				if (limit.Value > 100)
-				{
-					throw new ArgumentException("The limit parameter has an upper-limit of 100.", nameof(limit));
-				}
-
-				urlBuilder.Append($"first={limit}");
-			}
-
-			if (userIds != null)
-			{
-				if (userIds.Length > 100)
-				{
-					throw new ArgumentException("The userIds parameter has an upper-limit of 100.", nameof(userIds));
-				}
-
-				urlBuilder.Append("user_id=").Append(string.Join("&user_id=", userIds));
-			}
-
-			if (continuationCursorBefore != null && continuationCursorAfter != null)
-			{
-				throw new ArgumentException("The continuationCursorBefore and continuationCursorAfter cannot be specified both simultaneously",
-					$"{nameof(continuationCursorBefore)} | {nameof(continuationCursorAfter)}");
-			}
-
-			if (!string.IsNullOrWhiteSpace(continuationCursorBefore))
-			{
-				urlBuilder.Append(string.Join("before=", continuationCursorBefore));
-			}
-			else if (!string.IsNullOrWhiteSpace(continuationCursorAfter))
-			{
-				urlBuilder.Append(string.Join("after=", continuationCursorAfter));
-			}
-
-			return await GetAsync(urlBuilder.ToString(), TwitchHelixSerializerContext.Default.ResponseBaseWithPaginationBannedUserInfo, cancellationToken).ConfigureAwait(false);
-		}
-
-		/// <inheritdoc />
-		public async Task<ResponseBase<BanUser>?> BanUser(string broadcasterId, string userId, uint? durationSeconds, string? reason = null, CancellationToken cancellationToken = default)
-		{
-			var loggedInUser = await CheckUserLoggedIn().ConfigureAwait(false);
-
-			var urlBuilder = TWITCH_HELIX_BASEURL + "moderation/bans?broadcaster_id=" + broadcasterId + "&moderator_id=" + loggedInUser.UserId;
-
-			if (durationSeconds != null)
-			{
-				if (durationSeconds < 1)
-				{
-					throw new ArgumentException("The durationSeconds parameter should be greater than or equal to 1. If you want to ban the user, use null instead.", nameof(durationSeconds));
-				}
-
-				if (durationSeconds > 1209600)
-				{
-					throw new ArgumentException("The durationSeconds parameter should be less than or equal to 1209600 (2 weeks).", nameof(durationSeconds));
-				}
-			}
-
-			var body = new BanUserRequestDto(userId, durationSeconds, reason);
-			var bodyWrapper = new LegacyRequestDataWrapper<BanUserRequestDto>(body);
-			return await PostAsync(urlBuilder, bodyWrapper,
-					TwitchHelixSerializerContext.Default.LegacyRequestDataWrapperBanUserRequestDto,
-					TwitchHelixSerializerContext.Default.ResponseBaseBanUser,
-					cancellationToken)
-				.ConfigureAwait(false);
-		}
-
-		/// <inheritdoc />
-		public async Task<bool> UnbanUser(string broadcasterId, string userId, CancellationToken cancellationToken = default)
-		{
-			var loggedInUser = await CheckUserLoggedIn().ConfigureAwait(false);
-
-			var urlBuilder = TWITCH_HELIX_BASEURL + "moderation/bans?broadcaster_id=" + broadcasterId + "&moderator_id=" + loggedInUser.UserId + "&user_id=" + userId;
-
-			return await DeleteAsync(urlBuilder, cancellationToken).ConfigureAwait(false);
-		}
-
-		/// <inheritdoc />
-		public async Task<bool> SendChatAnnouncement(string broadcasterId, string message, SendChatAnnouncementColor color = SendChatAnnouncementColor.Primary, CancellationToken cancellationToken = default)
-		{
-			var loggedInUser = await CheckUserLoggedIn().ConfigureAwait(false);
-
-			var urlBuilder = TWITCH_HELIX_BASEURL + "chat/announcements?broadcaster_id=" + broadcasterId + "&moderator_id=" + loggedInUser.UserId;
-
-			var body = new SendChatAnnouncementRequestDto(message, color);
-			return await PostAsync(urlBuilder, body, TwitchHelixSerializerContext.Default.SendChatAnnouncementRequestDto, cancellationToken).ConfigureAwait(false);
-		}
-
-		/// <inheritdoc />
-		public async Task<bool> DeleteChatMessages(string broadcasterId, string? messageId = null, CancellationToken cancellationToken = default)
-		{
-			var loggedInUser = await CheckUserLoggedIn().ConfigureAwait(false);
-
-			var urlBuilder = new StringBuilder(TWITCH_HELIX_BASEURL + "moderation/chat?broadcaster_id=" + broadcasterId + "&moderator_id=" + loggedInUser.UserId);
-			if (messageId != null)
-			{
-				if (string.IsNullOrWhiteSpace(messageId))
-				{
-					throw new ArgumentException("The messageId parameter should not be empty.", nameof(messageId));
-				}
-
-				urlBuilder.Append("&message_id=").Append(messageId);
-			}
-
-			return await DeleteAsync(urlBuilder.ToString(), cancellationToken).ConfigureAwait(false);
-		}
-
-		/// <inheritdoc />
-		public async Task<ResponseBase<UserChatColorData>?> GetUserChatColor(string[] userIds, CancellationToken cancellationToken = default)
-		{
-			_ = await CheckUserLoggedIn().ConfigureAwait(false);
-
-			if (userIds.Length > 100)
-			{
-				throw new ArgumentException("The userIds parameter has an upper-limit of 100.", nameof(userIds));
-			}
-
-			if (userIds.Length == 0)
-			{
-				throw new ArgumentException("The userIds parameter should not be empty.", nameof(userIds));
-			}
-
-			var urlBuilder = new StringBuilder(TWITCH_HELIX_BASEURL + "chat/color?user_id=").Append(string.Join("&user_id=", userIds));
-
-			return await GetAsync(urlBuilder.ToString(), TwitchHelixSerializerContext.Default.ResponseBaseUserChatColorData, cancellationToken).ConfigureAwait(false);
-		}
-
-		/// <inheritdoc />
-		public async Task<bool> UpdateUserChatColor(UserChatColor color, CancellationToken cancellationToken = default)
-		{
-			var loggedInUser = await CheckUserLoggedIn().ConfigureAwait(false);
-
-			var colorString = color switch
-			{
-				UserChatColor.Blue => "blue",
-				UserChatColor.BlueViolet => "blue_violet",
-				UserChatColor.CadetBlue => "cadet_blue",
-				UserChatColor.Chocolate => "chocolate",
-				UserChatColor.Coral => "coral",
-				UserChatColor.DodgerBlue => "dodger_blue",
-				UserChatColor.Firebrick => "firebrick",
-				UserChatColor.GoldenRod => "golden_rod",
-				UserChatColor.Green => "green",
-				UserChatColor.HotPink => "hot_pink",
-				UserChatColor.OrangeRed => "orange_red",
-				UserChatColor.Red => "red",
-				UserChatColor.SeaGreen => "sea_green",
-				UserChatColor.SpringGreen => "spring_green",
-				UserChatColor.YellowGreen => "yellow_green",
-				_ => throw new ArgumentOutOfRangeException(nameof(color), color, "An invalid color was provided.")
-			};
-
-			var url = TWITCH_HELIX_BASEURL + "chat/color?user_id=" + loggedInUser.UserId + "&color=" + colorString;
-			return await PutAsync(url, cancellationToken).ConfigureAwait(false);
-		}
-
-		/// <inheritdoc />
-		public async Task<ResponseBase<StartRaidData>?> StartRaid(string targetBroadcasterId, CancellationToken cancellationToken = default)
-		{
-			var loggedInUser = await CheckUserLoggedIn().ConfigureAwait(false);
-
-			var url = TWITCH_HELIX_BASEURL + "raids?from_broadcaster_id=" + loggedInUser.UserId + "&to_broadcaster_id=" + targetBroadcasterId;
-			return await PostAsync(url, TwitchHelixSerializerContext.Default.ResponseBaseStartRaidData, cancellationToken).ConfigureAwait(false);
-		}
-
-		/// <inheritdoc />
-		public async Task<bool> CancelRaid(CancellationToken cancellationToken = default)
-		{
-			var loggedInUser = await CheckUserLoggedIn().ConfigureAwait(false);
-
-			return await DeleteAsync(TWITCH_HELIX_BASEURL + "raids?broadcaster_id=" + loggedInUser.UserId, cancellationToken).ConfigureAwait(false);
 		}
 
 		/// <inheritdoc />
@@ -423,15 +169,9 @@ namespace CatCore.Services.Twitch
 		}
 
 		/// <inheritdoc />
-		[Obsolete("This method is deprecated, please use the CreatePoll(string title, List<string> choices, uint duration, bool? bitsVotingEnabled = null, uint? bitsPerVote = null, bool? channelPointsVotingEnabled = null, uint? channelPointsPerVote = null, CancellationToken cancellationToken = default) method instead.", true)]
-		public Task<ResponseBase<PollData>?> CreatePoll(string title, List<string> choices, uint duration, bool? bitsVotingEnabled = null, uint? bitsPerVote = null,
-			bool? channelPointsVotingEnabled = null, uint? channelPointsPerVote = null, CancellationToken cancellationToken = default)
-			=> CreatePoll(title, choices, duration, channelPointsVotingEnabled, channelPointsPerVote, cancellationToken);
-
-		/// <inheritdoc />
 		// ReSharper disable once CognitiveComplexity
-		public async Task<ResponseBase<PollData>?> CreatePoll(string title, List<string> choices, uint duration, bool? channelPointsVotingEnabled = null, uint? channelPointsPerVote = null,
-			CancellationToken cancellationToken = default)
+		public async Task<ResponseBase<PollData>?> CreatePoll(string title, List<string> choices, uint duration, bool? bitsVotingEnabled = null, uint? bitsPerVote = null,
+			bool? channelPointsVotingEnabled = null, uint? channelPointsPerVote = null, CancellationToken cancellationToken = default)
 		{
 			var loggedInUser = await CheckUserLoggedIn().ConfigureAwait(false);
 
@@ -493,14 +233,11 @@ namespace CatCore.Services.Twitch
 				}
 			}
 
+			OptionalParametersValidation(ref bitsVotingEnabled, ref bitsPerVote, 10000);
 			OptionalParametersValidation(ref channelPointsVotingEnabled, ref channelPointsPerVote, 1000000);
 
-			var body = new CreatePollRequestDto(loggedInUser.UserId, title, pollChoices, duration, channelPointsVotingEnabled, channelPointsPerVote);
-			return await PostAsync(TWITCH_HELIX_BASEURL + "polls", body,
-					TwitchHelixSerializerContext.Default.CreatePollRequestDto,
-					TwitchHelixSerializerContext.Default.ResponseBasePollData,
-					cancellationToken)
-				.ConfigureAwait(false);
+			var body = new CreatePollRequestDto(loggedInUser.UserId, title, pollChoices, duration, bitsVotingEnabled, bitsPerVote, channelPointsVotingEnabled, channelPointsPerVote);
+			return await PostAsync(TWITCH_HELIX_BASEURL + "polls", body, TwitchHelixSerializerContext.Default.ResponseBasePollData, cancellationToken).ConfigureAwait(false);
 		}
 
 		/// <inheritdoc />
@@ -519,11 +256,7 @@ namespace CatCore.Services.Twitch
 			}
 
 			var body = new EndPollRequestDto(loggedInUser.UserId, pollId, pollStatus);
-			return await PatchAsync(TWITCH_HELIX_BASEURL + "polls", body,
-					TwitchHelixSerializerContext.Default.EndPollRequestDto,
-					TwitchHelixSerializerContext.Default.ResponseBasePollData,
-					cancellationToken)
-				.ConfigureAwait(false);
+			return await PatchAsync(TWITCH_HELIX_BASEURL + "polls", body, TwitchHelixSerializerContext.Default.ResponseBasePollData, cancellationToken).ConfigureAwait(false);
 		}
 
 		/// <inheritdoc />
@@ -606,11 +339,7 @@ namespace CatCore.Services.Twitch
 			}
 
 			var body = new CreatePredictionsRequestDto(loggedInUser.UserId, title, predictionOutcomes, duration);
-			return await PostAsync(TWITCH_HELIX_BASEURL + "predictions", body,
-					TwitchHelixSerializerContext.Default.CreatePredictionsRequestDto,
-					TwitchHelixSerializerContext.Default.ResponseBasePredictionData,
-					cancellationToken)
-				.ConfigureAwait(false);
+			return await PostAsync(TWITCH_HELIX_BASEURL + "predictions", body, TwitchHelixSerializerContext.Default.ResponseBasePredictionData, cancellationToken).ConfigureAwait(false);
 		}
 
 		/// <inheritdoc />
@@ -634,11 +363,7 @@ namespace CatCore.Services.Twitch
 			}
 
 			var body = new EndPredictionRequestDto(loggedInUser.UserId, predictionId, predictionStatus, winningOutcomeId);
-			return await PatchAsync(TWITCH_HELIX_BASEURL + "predictions", body,
-					TwitchHelixSerializerContext.Default.EndPredictionRequestDto,
-					TwitchHelixSerializerContext.Default.ResponseBasePredictionData,
-					cancellationToken)
-				.ConfigureAwait(false);
+			return await PatchAsync(TWITCH_HELIX_BASEURL + "predictions", body, TwitchHelixSerializerContext.Default.ResponseBasePredictionData, cancellationToken).ConfigureAwait(false);
 		}
 
 		/// <inheritdoc />

@@ -1,8 +1,5 @@
-﻿using JetBrains.Annotations;
-
-namespace CatCore.Models.Twitch.PubSub.Responses.VideoPlayback
+﻿namespace CatCore.Models.Twitch.PubSub.Responses.VideoPlayback
 {
-	[PublicAPI]
 	public sealed class Commercial : VideoPlaybackBase
 	{
 		public uint Length { get; }

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using BenchmarkDotNet.Attributes;
+using CatCore.Twemoji.Models;
 
 namespace CatCoreBenchmarkSandbox.Benchmarks.EmojiParser
 {
@@ -26,7 +27,7 @@ namespace CatCoreBenchmarkSandbox.Benchmarks.EmojiParser
 		[GlobalSetup(Target = nameof(CatCoreTwemojiReimplementationBenchmark))]
 		public void GlobalSetup()
 		{
-			_ = CatCore.Emoji.Twemoji.EmojiTesting.EmojiReferenceData;
+			_ = CatCore.Twemoji.EmojiTesting.EmojiReferenceData;
 		}
 
 		[Benchmark(Baseline = true)]
@@ -48,7 +49,7 @@ namespace CatCoreBenchmarkSandbox.Benchmarks.EmojiParser
 
 			for (var i = 0; i < Message.Length; i++)
 			{
-				var foundEmojiLeaf = CatCore.Emoji.Twemoji.EmojiTesting.EmojiReferenceData.LookupLeaf(Message, i);
+				var foundEmojiLeaf = CatCore.Twemoji.EmojiTesting.EmojiReferenceData.LookupLeaf(Message, i);
 				if (foundEmojiLeaf != null)
 				{
 					emojis.Add(new Emoji
