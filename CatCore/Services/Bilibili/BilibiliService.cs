@@ -1412,19 +1412,18 @@ namespace CatCore.Services.Bilibili
 			}
 
 			const int minimumRichImageCountForDanmu = 4;
-			if (richImages.Count >= minimumRichImageCountForDanmu)
-			{
-				return;
-			}
-
-			const int fallbackMaxDepth = 6;
-			TryExtractDanmuRichImagesWithFallback(infoNode, userId, richImages, richImageIds, 0, fallbackMaxDepth, minimumRichImageCountForDanmu);
 			if (richImages.Count < minimumRichImageCountForDanmu)
 			{
-				TryExtractDanmuRichImagesWithFallback(root, userId, richImages, richImageIds, 0, fallbackMaxDepth, minimumRichImageCountForDanmu);
+				const int fallbackMaxDepth = 6;
+				TryExtractDanmuRichImagesWithFallback(infoNode, userId, richImages, richImageIds, 0, fallbackMaxDepth, minimumRichImageCountForDanmu);
+				if (richImages.Count < minimumRichImageCountForDanmu)
+				{
+					TryExtractDanmuRichImagesWithFallback(root, userId, richImages, richImageIds, 0, fallbackMaxDepth, minimumRichImageCountForDanmu);
+				}
 			}
 
 			TryAddDanmuRoleFallbackImage(root, infoNode, userId, richImages, richImageIds);
+			TryAddDanmuAvatarFallbackImage(root, infoNode, userId, richImages, richImageIds);
 		}
 
 		private bool HasDanmuRoleSemanticFallback(JsonElement root, JsonElement infoNode, string userId)
@@ -1486,6 +1485,77 @@ namespace CatCore.Services.Bilibili
 					}
 				}
 			}
+		}
+
+		private void TryAddDanmuAvatarFallbackImage(JsonElement root, JsonElement infoNode, string userId,
+			List<BilibiliRichImage> richImages, HashSet<string> richImageIds)
+		{
+			if (richImages.Any(image => string.Equals(image.Kind, "avatar", StringComparison.Ordinal)))
+			{
+				return;
+			}
+
+			if (!TryFindDanmuAvatarUrl(infoNode, 0, 6, out var avatarUrl)
+				&& !TryFindDanmuAvatarUrl(root, 0, 6, out avatarUrl))
+			{
+				return;
+			}
+
+			var avatarId = CreateBilibiliImageId("avatar", userId, avatarUrl);
+			TryAddRichImage(richImages, richImageIds, new BilibiliRichImage(avatarId, avatarUrl, false, "avatar", 110));
+		}
+
+		private static bool TryFindDanmuAvatarUrl(JsonElement node, int depth, int maxDepth, out string avatarUrl)
+		{
+			avatarUrl = string.Empty;
+			if (depth > maxDepth)
+			{
+				return false;
+			}
+
+			if (node.ValueKind == JsonValueKind.Object)
+			{
+				avatarUrl = FirstNonEmpty(
+					GetPropertyString(node, "uface"),
+					GetPropertyString(node, "face"),
+					GetNestedPropertyString(node, "user", "base", "face"),
+					GetNestedPropertyString(node, "user_info", "face"));
+
+				if (!string.IsNullOrWhiteSpace(avatarUrl))
+				{
+					return true;
+				}
+
+				if (depth >= maxDepth)
+				{
+					return false;
+				}
+
+				foreach (var property in node.EnumerateObject())
+				{
+					if (TryFindDanmuAvatarUrl(property.Value, depth + 1, maxDepth, out avatarUrl))
+					{
+						return true;
+					}
+				}
+
+				return false;
+			}
+
+			if (node.ValueKind != JsonValueKind.Array || depth >= maxDepth)
+			{
+				return false;
+			}
+
+			foreach (var item in node.EnumerateArray())
+			{
+				if (TryFindDanmuAvatarUrl(item, depth + 1, maxDepth, out avatarUrl))
+				{
+					return true;
+				}
+			}
+
+			return false;
 		}
 
 		private string ResolveDanmuHonorLevelFallbackUrl(int honorLevel)

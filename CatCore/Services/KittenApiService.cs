@@ -389,13 +389,16 @@ namespace CatCore.Services
 					response.ContentEncoding = Encoding.UTF8;
 					response.ContentType = "application/json";
 
-					var loggedInUserInfo = await _twitchAuthService.FetchLoggedInUserInfoWithRefresh().ConfigureAwait(false);
-					var userInfos = loggedInUserInfo != null
+					var currentTwitchConfig = _settingsService.Config.TwitchConfig;
+					var loggedInUserInfo = currentTwitchConfig.Enabled
+						? await _twitchAuthService.FetchLoggedInUserInfoWithRefresh().ConfigureAwait(false)
+						: null;
+					var userInfos = currentTwitchConfig.Enabled && loggedInUserInfo != null
 						? await _twitchChannelManagementService.GetAllChannelsEnriched().ConfigureAwait(false)
 						: null;
 
 					await JsonSerializer
-						.SerializeAsync(response.OutputStream, new TwitchStateResponseDto(_twitchAuthService.TokenIsValid, loggedInUserInfo, userInfos, _settingsService.Config.TwitchConfig))
+						.SerializeAsync(response.OutputStream, new TwitchStateResponseDto(_twitchAuthService.TokenIsValid, loggedInUserInfo, userInfos, currentTwitchConfig))
 						.ConfigureAwait(false);
 
 					return true;
