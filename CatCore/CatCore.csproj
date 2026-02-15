@@ -1,0 +1,72 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>netstandard2.0</TargetFramework>
+		<OutputType>library</OutputType>
+		<LangVersion>9</LangVersion>
+		<Nullable>enable</Nullable>
+		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+		<Configurations>Debug;Develop;Release</Configurations>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<NoWarn>CS1591</NoWarn>
+	</PropertyGroup>
+
+	<PropertyGroup Condition=" '$(Configuration)' != 'Release' ">
+		<DebugType>full</DebugType>
+	</PropertyGroup>
+
+	<PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+		<DefineConstants>$(DefineConstants);BADGE_DEBUG</DefineConstants>
+	</PropertyGroup>
+
+	<PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+		<DebugType>pdbonly</DebugType>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<Title>CatCore</Title>
+		<Description>CatCore is a .NET Standard 2.0 library which provides a shared connection to mods and other applications for Twitch (and other future streaming platforms).</Description>
+		<Authors>Eris</Authors>
+		<Version>1.1.0</Version>
+		<Copyright>Copyright © Eris 2022</Copyright>
+		<PackageProjectUrl>https://github.com/ErisApps/CatCore</PackageProjectUrl>
+	</PropertyGroup>
+
+    <ItemGroup>
+		<PackageReference Include="DryIoc.dll" Version="5.0.1" />
+		<PackageReference Include="JetBrains.Annotations" Version="2022.1.0" />
+		<PackageReference Include="Polly" Version="7.2.3" />
+		<PackageReference Include="Serilog" Version="2.11.0-dev-01380" />
+		<PackageReference Include="Serilog.Sinks.Async" Version="1.5.0" />
+		<PackageReference Include="System.Net.Http.Json" Version="7.0.0-preview.3.22175.4" />
+		<PackageReference Include="System.Reactive" Version="5.0.0" />
+		<PackageReference Include="System.Text.Json" Version="7.0.0-preview.3.22175.4" />
+		<PackageReference Include="WebSocket4Net" Version="0.15.2" />
+		<PackageReference Include="WebsocketClientLite.PCL" Version="7.2.2" />
+    </ItemGroup>
+
+	<ItemGroup Condition=" '$(Configuration)' == 'Debug' ">
+		<PackageReference Include="Serilog.Sinks.Console" Version="4.0.2-dev-00890" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\CatCore.Svg\CatCore.Svg.csproj" />
+		<ProjectReference Include="..\CatCore.Shared\CatCore.Shared.csproj" />
+		<ProjectReference Include="..\CatCore.Twemoji\CatCore.Twemoji.csproj" />
+		<ProjectReference Include="..\CatCore.Twemoji.SourceGeneration\CatCore.Twemoji.SourceGeneration.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+	</ItemGroup>
+
+	<!-- Manually reference the generator props because we locally reference the generator. When added via NuGet this happens automatically -->
+	<Import Project="..\CatCore.Twemoji.SourceGeneration\CatCore.Twemoji.SourceGeneration.props" />
+
+    <ItemGroup>
+		<EmbeddedResource Include="Resources\**\*" />
+		<AdditionalFiles Include="..\Useful files\Unicode\Unicode14_0EmojiTest.txt" ClassName="Emojis">
+			<Link>Resources\Unicode14_0EmojiTest.txt</Link>
+		</AdditionalFiles>
+    </ItemGroup>
+
+	<Import Project="BeatSaber.targets" />
+
+</Project>

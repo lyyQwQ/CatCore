@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<title>CatCore 设置</title>
+	<!--Import Google Icon Font-->
+	<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+	<!-- Compiled and minified CSS -->
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+	<!--Let browser know website is optimized for mobile-->
+	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+	<meta charset="UTF-8">
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+	<style>
+		html, body {
+			height: 100%;
+		}
+
+		body {
+			display: flex;
+			flex-direction: column;
+		}
+
+		main, header {
+			flex: 1 0 auto;
+		}
+
+		.footer {
+			flex-shrink: 0;
+		}
+
+		.nav-wrapper {
+			padding-left: 16px;
+			padding-right: 16px;
+		}
+
+		.nav-wrapper > li {
+			padding-left: 16px;
+			padding-right: 16px;
+		}
+
+		.spinner-wrapper {
+			position: absolute;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			z-index: 10;
+			width: 100%;
+			height: 100%;
+			margin: 0;
+			left: 0;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			background-color: rgba(255, 255, 255, 0.8);
+		}
+
+		.twitch-header {
+			background-color: #6441A4;
+		}
+
+		.twitch-spinner-color {
+			border-color: #6441A4;
+		}
+
+		.twitch-button {
+			background-color: #6441A4;
+		}
+
+		.collection .collection-item.avatar {
+			min-height: 0 !important;
+		}
+
+		.global-spinner-color {
+			border-color: #757575;
+		}
+
+		.bilibili-header {
+			background-color: #00a1d6;
+		}
+
+		.bilibili-spinner-color {
+			border-color: #00a1d6;
+		}
+
+		/* Legacy Styles Migration */
+		.default-gap { gap: 4px; padding: 8px; }
+		.square { aspect-ratio: 1 / 1; }
+		.full-width { width: 100%; }
+		.step-list { display: flex; flex-direction: column; }
+		.step-list-item { display: flex; flex-direction: row; align-items: center; margin-bottom: 4px; }
+		.step-list-item i { margin-right: 8px; }
+		.stack-parent { position: relative; }
+		.stack-bottom { z-index: 0; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #ccc; }
+		.stack-top { z-index: 10; position: relative; }
+		.card-force-round { border-radius: 12px !important; }
+		.auto_overflow { overflow: auto; }
+		.btn_primary_color { background-color: #00a1d6; }
+		.progress .red { background-color: #db4437 !important; }
+		.progress .green { background-color: #0f9d58 !important; }
+		.progress .blue { background-color: #4285f4 !important; }
+		.center-flex { display: flex; justify-content: center; align-items: center; }
+		.flash-color { animation: flashColor 2s linear infinite; }
+		@keyframes flashColor {
+			0% { background-color: #4285f4; }
+			50% { background-color: #f4b400; }
+			100% { background-color: #0f9d58; }
+		}
+	</style>
+</head>
+<body class="grey lighten-3" style="height: 100%; min-height: 100%">
+<header>
+	<nav>
+		<div class="nav-wrapper">
+			<div class="brand-logo">CatCore 😺</div>
+			<ul id="nav-mobile" class="right">
+				<li>版本 {libVersion}</li>
+			</ul>
+		</div>
+	</nav>
+</header>
+
+<main>
+	<div class="container">
+		<div class="row" style="margin-top: 1rem">
+			<div class="col s4 m6">
+				<div class="card">
+					<div class="card-content twitch-header white-text">
+						<span class="card-title">Twitch 设置</span>
+					</div>
+
+					<div class="card-content" style="position:relative;">
+						<div id="twitch-loading-spinner" class="spinner-wrapper">
+							<div class="preloader-wrapper big active">
+								<div class="spinner-layer twitch-spinner-color">
+									<div class="circle-clipper left">
+										<div class="circle"></div>
+									</div>
+									<div class="gap-patch">
+										<div class="circle"></div>
+									</div>
+									<div class="circle-clipper right">
+										<div class="circle"></div>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<div class="row">
+							<div class="switch">
+								<label>
+									<input id="TwitchEnabled" type="checkbox">
+									<span class="lever"></span>
+									启用 Twitch (Enabled)
+								</label>
+							</div>
+						</div>
+
+						<div class="row">
+							<p class="caption">登录 (Login)</p>
+						</div>
+						<div class="row">
+							<a id="twitch-login-button" class="waves-effect waves-light btn twitch-button"
+							   href="/api/twitch/login">
+								登录 Twitch
+							</a>
+							<a id="twitch-logout-button" class="waves-effect waves-light btn red darken-1 hide"
+							   href="/api/twitch/logout">
+								登出 Twitch
+							</a>
+						</div>
+
+						<div class="row">
+							<p class="caption">频道管理 (Channels)</p>
+						</div>
+
+						<div id="twitch-channels-container-notloggedin" class="row valign-wrapper">
+							<span>您必须先登录 Twitch 才能管理频道 (Login to manage channels)</span>
+						</div>
+
+						<div id="twitch-channels-container" class="row hide">
+							<ul id="twitch-channels" class="collection">
+								<!-- Will be filled in with /api/twitch/state endpoint data -->
+							</ul>
+
+							<div style="display: flex; flex-direction: row; flex-wrap: nowrap; align-content: center;">
+								<div class="input-field" style="flex: 1 1 auto">
+									<i class="material-icons prefix">person_search</i>
+									<input type="text" id="additionalchannel-input" class="autocomplete">
+									<label id="additionalchannel-input-label" for="additionalchannel-input">输入频道名称以添加其他频道 (Channel Name)</label>
+									<span class="helper-text">这可以在 URL 中找到 (例如: https://www.twitch.tv/<b>realeris</b>)</span>
+								</div>
+								<div id="additionalchannel-loading-spinner" class="preloader-wrapper small active" style="flex: 0 1 auto; align-self: center; margin-left: 1rem; visibility: collapse">
+									<div class="spinner-layer twitch-spinner-color">
+										<div class="circle-clipper left">
+											<div class="circle"></div>
+										</div><div class="gap-patch">
+										<div class="circle"></div>
+									</div><div class="circle-clipper right">
+										<div class="circle"></div>
+									</div>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<div class="row">
+							<p class="caption">表情设置 (Emote Settings)</p>
+						</div>
+						<div class="row">
+							<div class="switch">
+								<label>
+									<input id="ParseBttvEmotes" type="checkbox">
+									<span class="lever"></span>
+									解析 BTTV 表情
+								</label>
+							</div>
+						</div>
+
+						<div class="row">
+							<div class="switch">
+								<label>
+									<input id="ParseFfzEmotes" type="checkbox">
+									<span class="lever"></span>
+									解析 FFZ 表情
+								</label>
+							</div>
+						</div>
+
+						<div class="row">
+							<div class="switch">
+								<label>
+									<input id="ParseTwitchEmotes" type="checkbox">
+									<span class="lever"></span>
+									解析 Twitch 表情
+								</label>
+							</div>
+						</div>
+
+						<div class="row">
+							<div class="switch">
+								<label>
+									<input id="ParseCheermotes" type="checkbox">
+									<span class="lever"></span>
+									解析 Cheermotes
+								</label>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="col s4 m6">
+				<div class="card">
+					<div class="card-content grey darken-1 white-text">
+						<span class="card-title">全局设置 (Global Settings)</span>
+					</div>
+
+					<div class="card-content" style="position: relative;">
+						<div id="global-loading-spinner" class="spinner-wrapper">
+							<div class="preloader-wrapper big active">
+								<div class="spinner-layer global-spinner-color">
+									<div class="circle-clipper left">
+										<div class="circle"></div>
+									</div>
+									<div class="gap-patch">
+										<div class="circle"></div>
+									</div>
+									<div class="circle-clipper right">
+										<div class="circle"></div>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<div class="row">
+							<p class="caption">Web 应用 (Web App)</p>
+						</div>
+						<div class="row">
+							<div class="switch">
+								<label>
+									<input id="LaunchInternalApiOnStartup" type="checkbox" onchange="OnInternalApiStateChanged()">
+									<span class="lever"></span>
+									启动时加载内部 API
+								</label>
+							</div>
+						</div>
+						<div class="row">
+							<div class="switch disabled">
+								<label>
+									<input id="LaunchWebPortalOnStartup" type="checkbox">
+									<span class="lever"></span>
+									启动时打开 Web 门户
+								</label>
+							</div>
+						</div>
+
+						<div class="row">
+							<p class="caption">全局设置</p>
+						</div>
+						<div class="row">
+							<div class="switch">
+								<label>
+									<input id="ParseEmojis" type="checkbox">
+									<span class="lever"></span>
+									解析 Emoji
+								</label>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="row">
+			<div class="col s12">
+				<div class="card">
+					<div class="card-content bilibili-header white-text">
+						<span class="card-title">Bilibili 设置 (Settings)</span>
+					</div>
+
+					<div class="card-content" style="position: relative;">
+						<div id="bilibili-loading-spinner" class="spinner-wrapper">
+							<div class="preloader-wrapper big active">
+								<div class="spinner-layer bilibili-spinner-color">
+									<div class="circle-clipper left">
+										<div class="circle"></div>
+									</div>
+									<div class="gap-patch">
+										<div class="circle"></div>
+									</div>
+									<div class="circle-clipper right">
+										<div class="circle"></div>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<div class="row">
+							<div class="switch">
+								<label>
+									<input id="Enabled" type="checkbox">
+									<span class="lever"></span>
+									启用 (Enabled)
+								</label>
+							</div>
+						</div>
+
+					<div class="row">
+						<div class="input-field col s12">
+							<input id="RoomId" type="text">
+							<label class="active" for="RoomId">直播间号 (Room ID)</label>
+						</div>
+					</div>
+
+					<div class="row default-gap" id="bilibili-settings-cookies-div">
+						<div class="col s12">
+							<p class="caption" id="bilibili-settings-cookies-settings">Bilibili Cookie 设置</p>
+							<div class="card-force-round auto_overflow">
+								<div class="warning-tip col s12" style="background-color: #fff9c4; color: #1a1c1e; padding: 10px; border-radius: 8px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+									<i class="material-icons" style="color: #fbc02d;">warning</i>
+									<span id="bilibili-settings-cookies-settings-warning">请勿将您的 Cookie 泄露给他人！ (Please DO NOT share your cookies!)</span>
+								</div>
+
+								<div class="input-field default-gap" style="position: relative;">
+									<i class="material-icons prefix" id="cookie-visibility-icon" style="cursor: pointer; position: absolute; right: 0; top: 0.8rem; width: auto;" onclick="ToggleCookieVisibility()">visibility</i>
+									<input id="Cookies" type="password" placeholder="dy_spec_agreed=1; buvid3=xxxxx..." style="padding-right: 2rem; box-sizing: border-box;">
+									<label for="Cookies" class="active">Cookie (Cookies)</label>
+								</div>
+
+								<div class="row">
+									<!-- QR Code Area -->
+									<div class="col s12 m6 center-flex stack-parent" id="bilibili-settings-cookies-qr-login" style="min-height: 200px;">
+										<span class="material-icons stack-bottom" style="font-size: 6rem;">qr_code_scanner</span>
+										<div class="stack-top" id="bilibili-settings-cookies-qr-img"></div>
+									</div>
+
+									<!-- Steps Area -->
+									<div class="col s12 m6" id="bilibili-settings-cookies-qr-login-status">
+										<div class="progress">
+											<div class="determinate" style="width: 0%" id="bilibili-settings-cookies-qr-login-status-progress"></div>
+										</div>
+										<div class="step-list default-gap">
+											<div class="step-list-item">
+												<span id="bilibili-settings-cookies-qr-login-status-step-text">操作步骤 (Steps):</span>
+											</div>
+											<div class="step-list-item">
+												<i class="material-icons" id="bilibili-settings-cookies-qr-login-status-request-icon">pending</i>
+												<span id="bilibili-settings-cookies-qr-login-status-request-text">请求二维码 (Request QR Code)</span>
+											</div>
+
+											<div class="step-list-item">
+												<i class="material-icons" id="bilibili-settings-cookies-qr-login-status-scan-icon">qr_code_scanner</i>
+												<span id="bilibili-settings-cookies-qr-login-status-scan-text">使用 Bilibili App 扫码 (Scan QR Code)</span>
+											</div>
+
+											<div class="step-list-item">
+												<i class="material-icons" id="bilibili-settings-cookies-qr-login-status-confirm-icon">login</i>
+												<span id="bilibili-settings-cookies-qr-login-status-confirm-text">等待确认登录 (Confirm Login)</span>
+											</div>
+										</div>
+									</div>
+									
+									<a class="waves-effect waves-light btn btn_primary_color col s12" id="bilibili-settings-cookies-qr-login-request-button" onclick="RequestBilibiliQrLogin(event)" style="margin-top: 10px;">
+										<span id="bilibili-settings-cookies-qr-login-request-button-text">请求新的二维码 (Request a new QR Code)</span>
+										<i class="material-icons right">qr_code</i>
+									</a>
+								</div>
+							</div>
+						</div>
+						<div class="col s12">
+							<p id="bilibili-qr-status" style="margin-top: 0.75rem; margin-bottom: 0; color: grey;">空闲 (Idle)</p>
+						</div>
+					</div>
+
+					<div class="row">
+						<p class="caption col s12">Overlay 显示设置 (Overlay Display)</p>
+						<div class="switch col s12 m6">
+							<label>
+								<input id="OverlayShowInitWelcome" type="checkbox">
+								<span class="lever"></span>
+								显示初始化欢迎语
+							</label>
+						</div>
+						<div class="switch col s12 m6">
+							<label>
+								<input id="OverlayShowUsername" type="checkbox">
+								<span class="lever"></span>
+								显示用户名
+							</label>
+						</div>
+						<div class="switch col s12 m6">
+							<label>
+								<input id="OverlayShowGiftInSc" type="checkbox">
+								<span class="lever"></span>
+								礼物用 SC 样式展示
+							</label>
+						</div>
+						<div class="switch col s12 m6">
+							<label>
+								<input id="OverlayShowGuardInSc" type="checkbox">
+								<span class="lever"></span>
+								大航海用 SC 样式展示
+							</label>
+						</div>
+					</div>
+
+					<div class="row">
+						<p class="caption col s12">Overlay TTS 设置</p>
+						<div class="switch col s12">
+							<label>
+								<input id="OverlayTtsEnable" type="checkbox">
+								<span class="lever"></span>
+								启用 TTS
+							</label>
+						</div>
+						<div class="input-field col s12">
+							<input id="OverlayTtsVoicePackage" type="text" placeholder="Microsoft Huihui - Chinese (Simplified, PRC)">
+							<label class="active" for="OverlayTtsVoicePackage">语音包名称 (留空则自动选择)</label>
+						</div>
+						<div class="input-field col s12 m6">
+							<input id="OverlayTtsVoiceSpeed" type="text" placeholder="10">
+							<label class="active" for="OverlayTtsVoiceSpeed">语速 (0-20, 10 = 1.0x)</label>
+						</div>
+						<div class="input-field col s12 m6">
+							<input id="OverlayTtsVoicePitch" type="text" placeholder="10">
+							<label class="active" for="OverlayTtsVoicePitch">语调 (0-20, 10 = 1.0)</label>
+						</div>
+					</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="row center-align">
+			<button id="SaveButton" class="btn waves-effect waves-light" onclick="SaveSettings(event)">保存设置 (Save)
+				<i class="material-icons right">send</i>
+			</button>
+		</div>
+	</div>
+</main>
+
+<footer class="page-footer footer">
+	<div class="container">
+		<div class="row">
+			<div class="col l6 s12">
+				<h5 class="white-text">关于 CatCore</h5>
+				CatCore 是一个为 Twitch (及其他直播平台) 提供共享连接的库。但维持认证服务运行需要成本。如果您喜欢我的工作，请考虑通过右侧的 Patreon 链接支持本项目 ^^<br />
+				~ Eris
+			</div>
+			<div class="col l4 offset-l2 s12">
+				<h5 class="white-text">链接</h5>
+				<ul>
+					<li>
+						<a class="white-text" href="https://www.patreon.com/bePatron?u=56168874" target="_blank">
+							<span style="display: inline-flex">
+							<svg xmlns="http://www.w3.org/2000/svg" style="fill: white; align-self: center; stroke-width: 1px; width: 1.8rem; height: 1.8rem" viewBox="0 0 569 546">
+								<g>
+									<circle cx="362.589996" cy="204.589996" data-fill="1" id="Oval" r="204.589996"></circle>
+									<rect data-fill="2" height="545.799988" id="Rectangle" width="100" x="0" y="0"></rect>
+								</g>
+							</svg>
+							<span style="height: 1px; width: 0.5rem"></span>
+							在 Patreon 上支持
+							</span>
+						</a>
+					</li>
+					<li>
+						<a class="white-text" href="https://github.com/ErisApps/CatCore" target="_blank">
+							<span style="display: inline-flex">
+							<svg xmlns="http://www.w3.org/2000/svg" style="fill: white; align-self: center; stroke-width: 1px; width: 1.8rem; height: 1.8rem" viewBox="0 0 24 24">
+								<path
+									d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+							</svg>
+							<span style="height: 1px; width: 0.5rem"></span>
+							查看 GitHub 项目
+							</span>
+						</a>
+					</li>
+				</ul>
+			</div>
+		</div>
+	</div>
+	<div class="footer-copyright">
+		<div class="container">
+			<span class="white-text">祝您直播愉快 ^^ (Have fun and enjoy streaming)</span>
+		</div>
+	</div>
+</footer>
+
+<!-- Compiled and minified JavaScript -->
+<script src="https://polyfill.io/v3/polyfill.min.js?features=default,fetch&flags=gated"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+
+<script>
+	const launchInternalApiOnStartupSwitch = document.getElementById("LaunchInternalApiOnStartup");
+	const launchWebPortalOnStartupSwitch = document.getElementById("LaunchWebPortalOnStartup");
+	const saveButtonElement = document.getElementById("SaveButton");
+
+	let twitchChannelData;
+	let additionalTwitchChannelsSuggestionsData;
+	let additionalTwitchChannelsAutocompleteInstance;
+	let bilibiliQrPollingTimer = null;
+	let qrCodeImgGenerator;
+	let qrCodeCountdown;
+
+	// Helper methods
+	function ToggleCookieVisibility() {
+		var input = document.getElementById("Cookies");
+		var icon = document.getElementById("cookie-visibility-icon");
+		if (input.type === "password") {
+			input.type = "text";
+			icon.innerText = "visibility_off";
+		} else {
+			input.type = "password";
+			icon.innerText = "visibility";
+		}
+	}
+
+	function toggleElement(id, force = false, show = false) {
+		var element = document.getElementById(id);
+		if (force) {
+			if (show && element.classList.contains("hide")) {
+				element.classList.remove("hide");
+			} else if (!show && !element.classList.contains("hide")) {
+				element.classList.add("hide");
+			}
+		} else {
+			if (element.classList.contains("hide")) {
+				element.classList.remove("hide");
+			} else {
+				element.classList.add("hide");
+			}
+		}
+	}
+
+	function reset_bilibili_login_steps() {
+		document.getElementById("bilibili-settings-cookies-qr-login-status-request-icon").textContent = "pending";
+		document.getElementById("bilibili-settings-cookies-qr-login-status-scan-icon").textContent = "qr_code_scanner";
+		document.getElementById("bilibili-settings-cookies-qr-login-status-confirm-icon").textContent = "login";
+		set_bilibili_login_progress('init');
+		
+		// clear existing QR
+		const qrContainer = document.getElementById("bilibili-settings-cookies-qr-img");
+		qrContainer.innerHTML = ""; 
+		
+		qrCodeCountdown = 180;
+		if (bilibiliQrPollingTimer !== null) {
+			clearInterval(bilibiliQrPollingTimer);
+			bilibiliQrPollingTimer = null;
+		}
+		if (qrCodeImgGenerator) {
+			qrCodeImgGenerator.clear();
+		}
+	}
+
+	function set_bilibili_login_progress(status, progress = 0) {
+		const progressBar = document.getElementById("bilibili-settings-cookies-qr-login-status-progress");
+		
+		switch (status) {
+			case "init":
+				progressBar.className = "determinate green";
+				progressBar.style.width = "0%";
+				break;
+			case "busy":
+				progressBar.className = "indeterminate flash-color";
+				progressBar.style.width = "0%";
+				return;
+			case "countdown":
+				progressBar.className = "determinate blue";
+				progressBar.style.width = `${progress}%`;
+				break;
+			case "error":
+				progressBar.className = "determinate red";
+				progressBar.style.width = "100%";
+				break;
+			case "done":
+				progressBar.className = "determinate green";
+				progressBar.style.width = "100%";
+				break;
+			default:
+				return;
+		}
+		progressBar.innerHTML = "";
+	}
+
+	function debounce(func, timeout) {
+		let timer;
+		return (...args) => {
+			clearTimeout(timer);
+			timer = setTimeout(() => {
+				func.apply(this, args);
+			}, timeout);
+		};
+	}
+
+	const requestTwitchChannelSuggestions = debounce(async () => {
+		const currentInput = additionalTwitchChannelsAutocompleteInstance.el.value;
+		if (currentInput.length < 3) {
+			additionalTwitchChannelsAutocompleteInstance.updateData({});
+			return;
+		}
+
+		if (twitchChannelData.length >= 8) {
+			M.toast({html: "除了您自己的频道外，您最多只能添加 7 个频道。</br>如果想要添加新频道，请先移除一个现有频道。", displayLength: 6000})
+			additionalTwitchChannelsAutocompleteInstance.updateData({});
+			return;
+		}
+
+		const loadingSpinner = document.getElementById("additionalchannel-loading-spinner");
+		try {
+			loadingSpinner.style.visibility = "visible"
+
+			const existingChannelIds = twitchChannelData.map(ch => ch.ChannelId);
+			const response = await fetch(`/api/twitch/channels?query=${currentInput}`);
+			additionalTwitchChannelsSuggestionsData = (await response.json()).filter(ch => !existingChannelIds.includes(ch.ChannelId)
+				&& (ch.LoginName.startsWith(currentInput.toLowerCase()) || ch.DisplayName.startsWith(currentInput)));
+
+			additionalTwitchChannelsAutocompleteInstance.updateData(additionalTwitchChannelsSuggestionsData.reduce((a, x) => ({...a, [`${x.DisplayName} (${x.LoginName})`]: x.ThumbnailUrl}), {}));
+			additionalTwitchChannelsAutocompleteInstance.open();
+		} catch (ex) {
+			console.error(ex);
+		} finally {
+			loadingSpinner.style.visibility = "hidden"
+		}
+	}, 650);
+
+	function GenerateAdditionalTwitchChannel(channel) {
+		return `<li id="TwitchChannel-${channel.ChannelId}" class="collection-item avatar">
+						<img src="${channel.ThumbnailUrl}" alt="${channel.DisplayName}'s profile picture" class="circle z-depth-1">
+						<span class="title">${channel.DisplayName}</span>
+						<p>${channel.LoginName}</p>
+						<a class="secondary-content valign-wrapper" style="cursor: pointer">
+							<i onclick="YeetTwitchChannel(event, '${channel.ChannelId}')" class="material-icons">delete</i>
+						</a>
+					</li>`;
+	}
+
+	function YeetTwitchChannel(event, channelId) {
+		event.preventDefault();
+
+		// Removes from internal channelData array
+		if (twitchChannelData !== null) {
+			const elementIndex = twitchChannelData.findIndex(x => x.ChannelId === channelId);
+			if (elementIndex > -1) {
+				twitchChannelData.splice(elementIndex, 1);
+			}
+		}
+
+		// Removes from DOM
+		document.getElementById(`TwitchChannel-${channelId}`).remove();
+	}
+
+	function OnInternalApiStateChanged() {
+		if (launchInternalApiOnStartupSwitch.checked) {
+			launchWebPortalOnStartupSwitch.removeAttribute("disabled")
+		} else {
+			launchWebPortalOnStartupSwitch.checked = false;
+			launchWebPortalOnStartupSwitch.setAttribute("disabled", "disabled");
+		}
+	}
+
+	// Loading state
+	async function OnLoad() {
+		await Promise.all([LoadTwitchState(), LoadGlobalState(), LoadBilibiliState()]);
+
+		let twitchChannelsAutocomplete = document.getElementById("additionalchannel-input");
+		additionalTwitchChannelsAutocompleteInstance = M.Autocomplete.init(twitchChannelsAutocomplete, {
+			data: {},
+			minLength: 3,
+			onAutocomplete: (autocompleteCellLabelText) => {
+				const loginName = autocompleteCellLabelText.slice(autocompleteCellLabelText.indexOf(' (') + 2, -1); // Extract login name from label... I know... it's a hacky work-around...
+				const channelToAdd = additionalTwitchChannelsSuggestionsData.find(ch => ch.LoginName === loginName);
+				twitchChannelData.push(channelToAdd);
+				document.getElementById("twitch-channels").innerHTML += GenerateAdditionalTwitchChannel(channelToAdd);
+
+				additionalTwitchChannelsAutocompleteInstance.el.value = "";
+				document.getElementById("additionalchannel-input-label").classList.remove("active");
+			}
+		});
+
+		additionalTwitchChannelsAutocompleteInstance.el.addEventListener('keyup', requestTwitchChannelSuggestions);
+	}
+
+	async function LoadTwitchState() {
+		const twitchLoadingSpinner = document.getElementById("twitch-loading-spinner");
+		twitchLoadingSpinner.style.visibility = "visible"
+
+		function GenerateOwnTwitchChannel(channel, isEnabled) {
+			return `<li class="collection-item avatar">
+						<img src="${channel.ThumbnailUrl}" alt="${channel.DisplayName}'s profile picture" class="circle z-depth-1">
+						<span class="title">${channel.DisplayName} (you)</span>
+						<p>${channel.LoginName}</p>
+						<a class="secondary-content valign-wrapper">
+							<div class="switch">
+								<label>
+								Active
+								<input id="SelfEnabled" type="checkbox" ${isEnabled ? "checked" : ""}>
+								<span class="lever" style="margin-right: 0"></span>
+								</label>
+							</div>
+						</a>
+					</li>`;
+		}
+
+		try {
+			const response = await fetch("/api/twitch/state");
+			const body = await response.json();
+
+			if (body["LoggedIn"] === true) {
+				document.getElementById("twitch-login-button").classList.add("hide");
+				document.getElementById("twitch-logout-button").classList.remove("hide");
+
+				document.getElementById("twitch-channels-container-notloggedin").classList.add("hide")
+				document.getElementById("twitch-channels-container").classList.remove("hide")
+			} else {
+				document.getElementById("twitch-login-button").classList.remove("hide");
+				document.getElementById("twitch-logout-button").classList.add("hide");
+
+				document.getElementById("twitch-channels-container-notloggedin").classList.remove("hide")
+				document.getElementById("twitch-channels-container").classList.add("hide")
+			}
+
+					let twitchChannelsHtml = "";
+					twitchChannelData = body["ChannelData"];
+					for (const channel of twitchChannelData) {
+				if (channel["IsSelf"] === true) {
+					twitchChannelsHtml += GenerateOwnTwitchChannel(channel, body["OwnChannelEnabled"]);
+				} else {
+					twitchChannelsHtml += GenerateAdditionalTwitchChannel(channel);
+				}
+			}
+
+					document.getElementById("twitch-channels").innerHTML = twitchChannelsHtml;
+
+					const twitchEnabledValue = body["Enabled"];
+					delete body["Enabled"];
+
+					HandleStateResponse(body);
+					const twitchEnabledElement = document.getElementById("TwitchEnabled");
+					if (twitchEnabledElement !== null) {
+						twitchEnabledElement.checked = typeof twitchEnabledValue === "boolean" ? twitchEnabledValue : true;
+					}
+				} catch (ex) {
+					M.toast({html: "加载 Twitch 设置时出错。"});
+			console.error(ex);
+		} finally {
+			twitchLoadingSpinner.style.visibility = "collapse"
+		}
+	}
+
+	async function LoadGlobalState() {
+		const globalLoadingSpinner = document.getElementById("global-loading-spinner");
+		globalLoadingSpinner.style.visibility = "visible"
+
+		try {
+			const response = await fetch("/api/global/state");
+			const body = await response.json();
+
+			HandleStateResponse(body);
+
+			// Ensure that LaunchWebPortalOnStartup appears as disabled when needed
+			OnInternalApiStateChanged();
+		} catch (ex) {
+			M.toast({html: "加载全局设置时出错。"});
+			console.error(ex);
+		} finally {
+			globalLoadingSpinner.style.visibility = "collapse"
+		}
+	}
+
+	async function LoadBilibiliState() {
+		const bilibiliLoadingSpinner = document.getElementById("bilibili-loading-spinner");
+		bilibiliLoadingSpinner.style.visibility = "visible"
+
+		try {
+			const response = await fetch("/api/bilibili/state");
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}`);
+			}
+			const body = await response.json();
+
+			HandleStateResponse(body);
+			const qrStatusElement = document.getElementById("bilibili-qr-status");
+			if (qrStatusElement !== null) {
+				qrStatusElement.textContent = body["Cookies"] ? "Cookie 已加载 (Cookies loaded)." : "空闲 (Idle)";
+			}
+			M.updateTextFields();
+		} catch (ex) {
+			M.toast({html: "加载 Bilibili 设置失败。"});
+			console.error(ex);
+		} finally {
+			bilibiliLoadingSpinner.style.visibility = "collapse"
+		}
+	}
+
+	function StopBilibiliQrPolling() {
+		if (bilibiliQrPollingTimer !== null) {
+			clearInterval(bilibiliQrPollingTimer);
+			bilibiliQrPollingTimer = null;
+		}
+	}
+
+	async function RequestBilibiliQrLogin(event) {
+		if (event) {
+			event.preventDefault();
+		}
+
+		const statusElement = document.getElementById("bilibili-qr-status");
+		const requestButton = document.getElementById("bilibili-settings-cookies-qr-login-request-button");
+		
+		StopBilibiliQrPolling();
+		reset_bilibili_login_steps();
+		set_bilibili_login_progress('busy');
+
+		if (requestButton) requestButton.classList.add("disabled");
+
+		try {
+			if (statusElement) statusElement.textContent = "正在请求二维码... (Requesting QR login...)";
+
+			const response = await fetch("/api/bilibili/qr_request");
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}`);
+			}
+			const body = await response.json();
+
+			if (statusElement) {
+				statusElement.textContent = body["status"] || "请扫描二维码 (Please scan the QR).";
+			}
+
+			if (body["url"]) {
+				// Generate QR code
+				const qrContainer = document.getElementById("bilibili-settings-cookies-qr-img");
+				qrContainer.innerHTML = ""; // Clear
+				qrCodeImgGenerator = new QRCode(qrContainer, {
+					text: body["url"],
+					width: 180,
+					height: 180
+				});
+
+				// Update steps
+				document.getElementById("bilibili-settings-cookies-qr-login-status-request-icon").textContent = "done";
+				M.toast({html: "二维码请求成功。"});
+
+				// Start polling
+				bilibiliQrPollingTimer = setInterval(PollBilibiliQrStatus, 2000);
+				await PollBilibiliQrStatus();
+			} else {
+				StopBilibiliQrPolling();
+				set_bilibili_login_progress('error');
+				document.getElementById("bilibili-settings-cookies-qr-login-status-request-icon").textContent = "error";
+			}
+		} catch (ex) {
+			if (statusElement) statusElement.textContent = "请求二维码失败 (Failed).";
+			set_bilibili_login_progress('error');
+			document.getElementById("bilibili-settings-cookies-qr-login-status-request-icon").textContent = "error";
+			console.error(ex);
+		} finally {
+			if (requestButton) requestButton.classList.remove("disabled");
+		}
+	}
+
+	async function PollBilibiliQrStatus() {
+		const statusElement = document.getElementById("bilibili-qr-status");
+		
+		// Update countdown
+		qrCodeCountdown -= 2; // ~2 seconds per poll
+		if (qrCodeCountdown > 0) {
+			set_bilibili_login_progress('countdown', (180 - qrCodeCountdown) / 1.8);
+		} else {
+			set_bilibili_login_progress('error'); // Timeout
+		}
+
+		try {
+			const response = await fetch("/api/bilibili/qr_status");
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}`);
+			}
+			const body = await response.json();
+			const status = typeof body["status"] === "string" ? body["status"] : "";
+
+			if (statusElement && status) {
+				statusElement.textContent = status;
+			}
+
+			// Handle different statuses based on legacy logic + API response
+			// Legacy logic: login_done, qr_scan_done, qr_fetch_done, qr_scan_busy
+			// API response typically returns "status" string.
+			// We check specific strings or flags if available.
+			// Note: The legacy JS checked for "login_done", etc. but the endpoint might return human readable strings.
+			// We will rely on the body content behavior from the original file for success/fail detection.
+
+			if (status.includes("expired") || status.includes("failed") || status.includes("No active")) {
+				StopBilibiliQrPolling();
+				set_bilibili_login_progress('error');
+				document.getElementById("bilibili-settings-cookies-qr-login-status-confirm-icon").textContent = "error";
+			} else if (status.includes("scanned") || status.includes("Scan")) {
+				// Mark scan step as done
+				document.getElementById("bilibili-settings-cookies-qr-login-status-scan-icon").textContent = "done";
+			}
+
+			if (body["cookies"]) {
+				document.getElementById("Cookies").value = body["cookies"];
+				M.updateTextFields();
+				StopBilibiliQrPolling();
+				
+				// All steps done
+				document.getElementById("bilibili-settings-cookies-qr-login-status-scan-icon").textContent = "done";
+				document.getElementById("bilibili-settings-cookies-qr-login-status-confirm-icon").textContent = "done";
+				set_bilibili_login_progress('done');
+				
+				M.toast({html: "已通过二维码登录获取 Bilibili Cookie。"});
+			}
+		} catch (ex) {
+			StopBilibiliQrPolling();
+			set_bilibili_login_progress('error');
+			if (statusElement) statusElement.textContent = "二维码轮询失败 (Polling failed).";
+			console.error(ex);
+		}
+	}
+
+	function HandleStateResponse(state) {
+		const keys = Object.keys(state);
+		for (const key of keys) {
+			const element = document.getElementById(key);
+
+			if (element === null) {
+				continue;
+			}
+
+		if (element.tagName.toLowerCase() === "input") {
+			switch (element.type) {
+				case "checkbox":
+					element.checked = state[key];
+					break;
+				case "text":
+				case "password":
+					element.value = state[key];
+					break;
+			}
+		} else if (element.tagName.toLowerCase() === "textarea") {
+			element.value = state[key];
+		}
+	}
+}
+
+	// Saving state
+	async function SaveSettings(event) {
+		event.preventDefault();
+
+		// Disable save button to prevent concurrent stuffs
+		saveButtonElement.enabled = false;
+		saveButtonElement.classList.add("disabled");
+
+	try {
+		await Promise.all([SaveTwitchState(), SaveGlobalState(), SaveBilibiliState()]);
+	} catch (ex) {
+		console.error(ex);
+	} finally {
+			saveButtonElement.classList.remove("disabled")
+			saveButtonElement.enabled = true;
+		}
+	}
+
+	async function SaveBilibiliState() {
+		try {
+			const roomIdValue = Number(LookupCurrentValue("RoomId"));
+			const overlayTtsVoiceSpeed = Math.round(Number(LookupCurrentValue("OverlayTtsVoiceSpeed")));
+			const overlayTtsVoicePitch = Math.round(Number(LookupCurrentValue("OverlayTtsVoicePitch")));
+			if (!Number.isFinite(roomIdValue) || roomIdValue <= 0) {
+				M.toast({html: "直播间号必须为正整数。"});
+				return;
+			}
+			if (!Number.isFinite(overlayTtsVoiceSpeed) || overlayTtsVoiceSpeed < 0 || overlayTtsVoiceSpeed > 20) {
+				M.toast({html: "TTS 语速必须是 0 到 20 的整数。"});
+				return;
+			}
+			if (!Number.isFinite(overlayTtsVoicePitch) || overlayTtsVoicePitch < 0 || overlayTtsVoicePitch > 20) {
+				M.toast({html: "TTS 语调必须是 0 到 20 的整数。"});
+				return;
+			}
+			const response = await fetch('/api/bilibili/state', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					Enabled: LookupCurrentValue("Enabled"),
+					RoomId: roomIdValue,
+					Cookies: LookupCurrentValue("Cookies"),
+					OverlayTtsEnable: LookupCurrentValue("OverlayTtsEnable"),
+					OverlayTtsVoicePackage: LookupCurrentValue("OverlayTtsVoicePackage"),
+					OverlayTtsVoiceSpeed: overlayTtsVoiceSpeed,
+					OverlayTtsVoicePitch: overlayTtsVoicePitch,
+					OverlayShowInitWelcome: LookupCurrentValue("OverlayShowInitWelcome"),
+					OverlayShowUsername: LookupCurrentValue("OverlayShowUsername"),
+					OverlayShowGiftInSc: LookupCurrentValue("OverlayShowGiftInSc"),
+					OverlayShowGuardInSc: LookupCurrentValue("OverlayShowGuardInSc")
+				})
+			});
+
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}`);
+			}
+
+			M.toast({html: "Bilibili 设置已保存。"})
+		} catch (ex) {
+			M.toast({html: `保存 Bilibili 设置失败 (${ex.message || "未知错误"}).`});
+			console.error(ex);
+		}
+	}
+
+	async function SaveTwitchState() {
+		try {
+			await fetch('/api/twitch/state', {
+				method: 'POST',
+				body: JSON.stringify({
+					Enabled: LookupCurrentValue("TwitchEnabled"),
+					SelfEnabled: LookupCurrentValue("SelfEnabled"),
+					AdditionalChannelsData: twitchChannelData
+						.filter(x => !x.IsSelf)
+						.reduce((a, x) => ({...a, [x.ChannelId]: x.LoginName}), {}),
+					ParseBttvEmotes: LookupCurrentValue("ParseBttvEmotes"),
+					ParseFfzEmotes: LookupCurrentValue("ParseFfzEmotes"),
+					ParseTwitchEmotes: LookupCurrentValue("ParseTwitchEmotes"),
+					ParseCheermotes: LookupCurrentValue("ParseCheermotes"),
+				})
+			})
+
+			M.toast({html: "Twitch 设置已保存。"})
+		} catch (ex) {
+			M.toast({html: "保存 Twitch 设置时出错。请确保 Beat Saber 仍在运行。"});
+			console.error(ex);
+		}
+	}
+
+	async function SaveGlobalState() {
+		try {
+			await fetch('/api/global/state', {
+				method: 'POST',
+				body: JSON.stringify({
+					LaunchInternalApiOnStartup: LookupCurrentValue("LaunchInternalApiOnStartup"),
+					LaunchWebPortalOnStartup: LookupCurrentValue("LaunchWebPortalOnStartup"),
+					ParseEmojis: LookupCurrentValue("ParseEmojis")
+				})
+			})
+
+			M.toast({html: "全局设置已保存。"})
+		} catch (ex) {
+			M.toast({html: "保存全局设置时出错。请确保 Beat Saber 仍在运行。"});
+			console.error(ex);
+		}
+	}
+
+	function LookupCurrentValue(id) {
+		let element = document.getElementById(id);
+
+		if (element === null) {
+			return;
+		}
+
+	if (element.tagName.toLowerCase() === "input") {
+		switch (element.type) {
+			case "checkbox":
+				return element.checked;
+			case "text":
+			case "password":
+				return element.value;
+		}
+	} else if (element.tagName.toLowerCase() === "textarea") {
+		return element.value;
+	}
+}
+
+	OnLoad();
+</script>
+</body>
+</html>

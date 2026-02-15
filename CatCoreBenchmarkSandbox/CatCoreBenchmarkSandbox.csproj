@@ -1,0 +1,33 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFrameworks>net472;net5.0</TargetFrameworks>
+		<LangVersion>9</LangVersion>
+		<Configurations>Release</Configurations>
+		<Platforms>AnyCPU</Platforms>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
+
+	<ItemGroup>
+	  <PackageReference Include="BenchmarkDotNet" Version="0.13.1" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\CatCore.Twemoji\CatCore.Twemoji.csproj" />
+		<ProjectReference Include="..\CatCore.Twemoji.SourceGeneration\CatCore.Twemoji.SourceGeneration.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+	</ItemGroup>
+
+	<!-- Manually reference the generator props because we locally reference the generator. When added via NuGet this happens automatically -->
+	<Import Project="..\CatCore.Twemoji.SourceGeneration\CatCore.Twemoji.SourceGeneration.props" />
+
+	<ItemGroup>
+		<Folder Include="Resources" />
+		<AdditionalFiles Include="..\Useful files\Unicode\Unicode13_1EmojiTest.txt" ClassName="EmojiTesting">
+			<Link>Resources\Unicode13_1EmojiTest.txt</Link>
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</AdditionalFiles>
+	</ItemGroup>
+
+</Project>
+

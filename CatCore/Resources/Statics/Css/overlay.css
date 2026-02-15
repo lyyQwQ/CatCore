@@ -1,0 +1,211 @@
+body,
+input,
+textarea,
+div {
+	color: white;
+	text-align: center;
+	vertical-align: middle;
+	background-color: transparent;
+	font-family: 'Microsoft YaHei','SF Pro Display', Roboto, Noto, Arial,sans-serif;
+	margin: 0;
+}
+
+.overlay-msgs-wraper {
+	display: flex;
+	flex-direction: column-reverse;
+	padding: 8px;
+	height: calc(100% - 16px);
+	width: calc(100% - 16px);
+	position: absolute;
+	overflow: hidden;
+}
+
+.overlay-msgs {
+	display: inherit;
+	flex-direction: column;
+}
+
+.msg-danmuku-normalMsg,
+.msg-danmuku-SimplifiedMsg-withAvatar,
+.msg-danmuku-simplifiedMsg {
+	position: relative;
+	display: flex;
+	flex-direction: row;
+	align-items: flex-start;
+}
+
+.msg-danmuku-avatar {
+	width: 32px;
+	height: 32px;
+	margin: 20px 8px 0;
+	border-radius: 16px;
+	background-size: 40px 40px;
+	background-position: -4px -4px;
+	flex-shrink: 0;
+	-moz-box-shadow: 0 0 4px black;
+	-webkit-box-shadow: 0 0 4px black;
+	box-shadow: 0 0 4px black;
+}
+
+.msg-bubble {
+	float: left;
+	width: max-content;
+	max-width: calc(100% - 80px);
+	margin: 4px 8px;
+	background-color: rgba(29, 99, 156, 1);
+	border-bottom-color: skyblue;
+	padding: 8px 16px 8px 16px;
+	box-sizing: border-box;
+	border-radius: 32px;
+	position: relative;
+}
+
+.msg-bubble::before {
+	content: '';
+	position: absolute;
+	top: 24px;
+	left: -6px;
+	width: 16px;
+	height: 16px;
+	background: inherit;
+	transform: rotate(45deg);
+}
+
+.msg-danmuku-username {
+	font-size: 1.0em;
+	color: white;
+	white-space: pre;
+	line-height: 24px;
+	padding-right: 8px;
+	font-weight: bolder;
+	text-align: left;
+}
+
+.msg-danmuku-content-bubble {
+	font-size: 1.2em;
+	color: white;
+	text-align: left;
+	line-height: 24px;
+	word-break: break-all;
+	padding-right: 8px;
+	font-weight: normal;
+}
+
+.msg-danmuku-content {
+	font-size: 1.1em;
+	color: rgb(43, 147, 232);
+	text-align: left;
+	line-height: 36px;
+	word-break: break-all;
+	padding-right: 8px;
+	font-weight: 800;
+}
+
+.msg-danmuku-content-bubble img,
+.msg-danmuku-content img {
+	height: 28px;
+	margin: -8px 0;
+}
+
+.msg-danmuku-gift-content {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+}
+
+.msg-danmuku-giftImg {
+	width: 36px;
+	height: 36px;
+	margin: 0px 4px;
+	background-size: 36px 36px;
+	flex-shrink: 0;
+}
+
+.msg-danmuku-motionImg {
+	height: 36px;
+	margin: 16px 4px;
+	flex-shrink: 0;
+}
+
+.msg-danmuku-motionImg img {
+	height: 36px;
+}
+
+.msg-danmuku-motionImg-proprietary {
+	width: 72px;
+	height: 72px;
+	margin: 0px 4px;
+	background-size: 72px 72px;
+	flex-shrink: 0;
+}
+
+.msg-danmuku-motionImg-proprietary img {
+	height: 72px;
+}
+
+.msg-danmuku-SuperChatMsg {
+	background-color: rgba(43, 147, 232, 1);
+	display: flex;
+	flex-direction: column;
+	border-radius: 32px;
+	overflow: hidden;
+	margin: 4px;
+}
+
+.msg-danmuku-SuperChatTop {
+	display: flex;
+	flex-direction: row;
+	align-items: flex-start;
+}
+
+.msg-danmuku-SuperChatTop2 {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	height: 72px;
+	overflow: hidden;
+}
+
+.msg-SuperChat-avatar {
+	width: 56px;
+	height: 56px;
+	margin: 8px;
+	border-radius: 28px;
+	background-size: 68px 68px;
+	flex-shrink: 0;
+	-moz-box-shadow: 0 0 4px black;
+	-webkit-box-shadow: 0 0 4px black;
+	box-shadow: 0 0 4px black;
+	background-position: -6px -6px;
+}
+
+.msg-SuperChat-username {
+	font-size: 1.2em;
+	color: white;
+	white-space: pre;
+	line-height: 36px;
+	padding-left: 4px;
+	padding-right: 8px;
+	font-weight: bolder;
+}
+
+.msg-SuperChat-content {
+	background-color: rgba(29, 99, 156, 1);
+	font-size: 1em;
+	line-height: 36px;
+	padding: 0px 8px;
+	color: white;
+	font-weight: 600;
+}
+
+.msg-SuperChat-price {
+	font-size: 1.2em;
+	color: white;
+	padding-left: 4px;
+	padding-right: 8px;
+	font-weight: bold;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	text-align: left;
+}
