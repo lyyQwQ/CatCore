@@ -23,6 +23,7 @@ namespace CatCore.Services.Bilibili
 	internal sealed class BilibiliService : IBilibiliService, IDisposable
 	{
 		private const string LIVE_SOCKET_URL = "wss://broadcastlv.chat.bilibili.com:443/sub";
+		private const string ROOM_INFO_API_URL = "https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id=";
 		private const string AUTH_FLOW = "qr_cookie";
 
 		private readonly ILogger _logger;
@@ -64,6 +65,7 @@ namespace CatCore.Services.Bilibili
 		private string _chatToken = string.Empty;
 		private string _buvid3 = string.Empty;
 		private long _resolvedUserId;
+		private long _activeBroadcasterUserId;
 		private string _authSuspendedReason = string.Empty;
 		private string _defaultSocketUri = LIVE_SOCKET_URL;
 		private readonly object _danmuWealthIconCacheLock = new();
@@ -165,6 +167,7 @@ namespace CatCore.Services.Bilibili
 			Interlocked.Exchange(ref _lastHeartbeatSentTicksUtc, 0);
 			Interlocked.Exchange(ref _lastHeartbeatAckTicksUtc, 0);
 			Interlocked.Exchange(ref _webSocketOpenedAttempt, 0);
+			_activeBroadcasterUserId = 0;
 			_webSocketClient.Disconnect();
 
 			if (_currentChannel != null)
@@ -343,6 +346,7 @@ namespace CatCore.Services.Bilibili
 			Interlocked.Exchange(ref _lastHeartbeatSentTicksUtc, 0);
 			Interlocked.Exchange(ref _lastHeartbeatAckTicksUtc, 0);
 			Interlocked.Exchange(ref _heartbeatAckTimeoutTriggered, 0);
+			_activeBroadcasterUserId = 0;
 
 			if (_currentChannel != null)
 			{
@@ -567,13 +571,7 @@ namespace CatCore.Services.Bilibili
 				_reconnectAttempts = 0;
 			}
 
-			if (_currentChannel == null)
-			{
-				var channelId = _activeRoomId > 0 ? _activeRoomId.ToString(CultureInfo.InvariantCulture) : "bilibili";
-				_currentChannel = new BilibiliChannel(channelId, channelId, SendMessageToChannel);
-				OnJoinChannel?.Invoke(this, _currentChannel);
-				OnRoomStateUpdated?.Invoke(this, _currentChannel);
-			}
+			EnsureCurrentChannelMatchesActiveRoom(raiseLeaveWhenChanged: true, raiseJoinWhenChanged: true, raiseRoomStateUpdated: true);
 
 			OnAuthenticatedStateChanged?.Invoke(this);
 			OnChatConnected?.Invoke(this);
@@ -661,14 +659,38 @@ namespace CatCore.Services.Bilibili
 
 		private void EnsureCurrentChannel()
 		{
-			if (_currentChannel != null)
+			EnsureCurrentChannelMatchesActiveRoom(raiseLeaveWhenChanged: true, raiseJoinWhenChanged: true, raiseRoomStateUpdated: false);
+		}
+
+		private void EnsureCurrentChannelMatchesActiveRoom(bool raiseLeaveWhenChanged, bool raiseJoinWhenChanged, bool raiseRoomStateUpdated)
+		{
+			var channelId = _activeRoomId > 0 ? _activeRoomId.ToString(CultureInfo.InvariantCulture) : "bilibili";
+			var currentChannel = _currentChannel;
+			if (currentChannel != null && string.Equals(currentChannel.Id, channelId, StringComparison.Ordinal))
 			{
+				if (raiseRoomStateUpdated)
+				{
+					OnRoomStateUpdated?.Invoke(this, currentChannel);
+				}
+
 				return;
 			}
 
-			var channelId = _activeRoomId > 0 ? _activeRoomId.ToString(CultureInfo.InvariantCulture) : "bilibili";
+			if (currentChannel != null && raiseLeaveWhenChanged)
+			{
+				OnLeaveChannel?.Invoke(this, currentChannel);
+			}
+
 			_currentChannel = new BilibiliChannel(channelId, channelId, SendMessageToChannel);
-			OnJoinChannel?.Invoke(this, _currentChannel);
+			if (raiseJoinWhenChanged)
+			{
+				OnJoinChannel?.Invoke(this, _currentChannel);
+			}
+
+			if (raiseRoomStateUpdated)
+			{
+				OnRoomStateUpdated?.Invoke(this, _currentChannel);
+			}
 		}
 
 		private void PublishOverlayPackets(BilibiliDecodedPacket packet, JsonElement root, string command, BilibiliMessage? message)
@@ -1066,6 +1088,8 @@ namespace CatCore.Services.Bilibili
 				var danmuHonorPrefix = string.Empty;
 				var showBadge = _settingsService?.Config?.BilibiliConfig?.ShowBadge ?? true;
 				var color = "#FFFFFF";
+				var isBroadcaster = false;
+				var isModerator = false;
 				List<IChatEmote>? emotes = null;
 				HashSet<string>? emoteIdentities = null;
 				List<BilibiliRichImage>? richImages = null;
@@ -1085,6 +1109,10 @@ namespace CatCore.Services.Bilibili
 								userId = GetArrayString(userNode, 0, "0");
 								userName = GetArrayString(userNode, 1, "Bilibili");
 								senderDisplayName = userName;
+								if (userNode.GetArrayLength() > 2)
+								{
+									isModerator = GetArrayString(userNode, 2) == "1";
+								}
 								if (userNode.GetArrayLength() > 7)
 								{
 									var rawColor = GetArrayString(userNode, 7);
@@ -1120,6 +1148,7 @@ namespace CatCore.Services.Bilibili
 							|| (root.TryGetProperty("data", out var dataNode) && dataNode.ValueKind == JsonValueKind.Object);
 
 						var hasDanmuRoleSemantic = HasDanmuRoleSemanticFallback(root, infoNode, userId);
+						isBroadcaster = ResolveDanmuIsBroadcaster(root, infoNode, userId);
 
 						if (hasDanmuRichMedia || hasDanmuRoleSemantic)
 						{
@@ -1264,7 +1293,7 @@ namespace CatCore.Services.Bilibili
 					}
 				}
 
-				var sender = new BilibiliUser(userId, userName, senderDisplayName, color, false, false, senderBadges);
+				var sender = new BilibiliUser(userId, userName, senderDisplayName, color, isBroadcaster, isModerator, senderBadges);
 				#if BADGE_DEBUG
 				_logger.Information("[BADGE_SVC] after-assign uid={UserId} badgeCount={BadgeCount}", sender.Id, sender.Badges.Count);
 				#endif
@@ -1456,18 +1485,17 @@ namespace CatCore.Services.Bilibili
 		private void TryAddDanmuRoleFallbackImage(JsonElement root, JsonElement infoNode, string userId,
 			List<BilibiliRichImage> richImages, HashSet<string> richImageIds)
 		{
+			if (ResolveDanmuIsBroadcaster(root, infoNode, userId))
+			{
+				var broadcasterUrl = BuildInternalStaticImageUrl("BilibiliLiveBroadcaster.png");
+				var broadcasterId = CreateBilibiliImageId("badge", $"{userId}_broadcaster", broadcasterUrl);
+				TryAddRichImage(richImages, richImageIds, new BilibiliRichImage(broadcasterId, broadcasterUrl, false, "badge", 110));
+			}
+
 			var badgeAdded = false;
 
 			if (!richImages.Any(image => string.Equals(image.Kind, "badge", StringComparison.Ordinal)))
 			{
-				if (ResolveDanmuIsBroadcaster(root, infoNode, userId))
-				{
-					var broadcasterUrl = BuildInternalStaticImageUrl("BilibiliLiveBroadcaster.png");
-					var broadcasterId = CreateBilibiliImageId("badge", $"{userId}_broadcaster", broadcasterUrl);
-					TryAddRichImage(richImages, richImageIds, new BilibiliRichImage(broadcasterId, broadcasterUrl, false, "badge", 110));
-					badgeAdded = true;
-				}
-
 				if (!badgeAdded)
 				{
 					var guardLevel = ResolveDanmuGuardLevel(infoNode);
@@ -1945,6 +1973,11 @@ namespace CatCore.Services.Bilibili
 			if (senderUid <= 0)
 			{
 				return false;
+			}
+
+			if (_activeBroadcasterUserId > 0)
+			{
+				return senderUid == _activeBroadcasterUserId;
 			}
 
 			var ownerUid = ResolveDanmuOwnerUserId(root, infoNode);
@@ -2682,6 +2715,7 @@ namespace CatCore.Services.Bilibili
 			}
 
 			_resolvedUserId = ResolveUserIdFromCookie(normalizedCookies);
+			_activeBroadcasterUserId = 0;
 			_buvid3 = BilibiliCookieHelper.GetCookieValue(normalizedCookies, "buvid3");
 			if (string.IsNullOrWhiteSpace(_buvid3))
 			{
@@ -2694,6 +2728,7 @@ namespace CatCore.Services.Bilibili
 			}
 
 			await RefreshDanmuWealthIconCacheAsync(normalizedCookies).ConfigureAwait(false);
+			await RefreshActiveBroadcasterUserIdAsync(config.RoomId, normalizedCookies).ConfigureAwait(false);
 
 			var (chatToken, endpoint, errorCode) = await GetChatTokenAsync(config.RoomId, normalizedCookies).ConfigureAwait(false);
 			_chatToken = chatToken;
@@ -2767,6 +2802,60 @@ namespace CatCore.Services.Bilibili
 			catch
 			{
 				// wealth icon cache is best effort and should not block auth flow
+			}
+		}
+
+		private async Task RefreshActiveBroadcasterUserIdAsync(long roomId, string cookies)
+		{
+			_activeBroadcasterUserId = 0;
+			if (roomId <= 0 || string.IsNullOrWhiteSpace(cookies))
+			{
+				return;
+			}
+
+			try
+			{
+				var url = ROOM_INFO_API_URL + roomId.ToString(CultureInfo.InvariantCulture);
+				var (ok, body) = await BilibiliAuthHttpClient.GetAsync(url, cookies).ConfigureAwait(false);
+				if (!ok)
+				{
+					_logger.Warning("BILI_ROOM_INFO_FETCH_FAILED room={RoomId}", roomId);
+					return;
+				}
+
+				using var document = JsonDocument.Parse(body);
+				var root = document.RootElement;
+				if (!TryGetCode(root, out var code) || code != 0)
+				{
+					_logger.Warning("BILI_ROOM_INFO_INVALID room={RoomId} code={Code}", roomId, code);
+					return;
+				}
+
+				if (!root.TryGetProperty("data", out var dataNode) || dataNode.ValueKind != JsonValueKind.Object)
+				{
+					return;
+				}
+
+				var broadcasterUid = FirstPositiveLong(
+					GetNestedPropertyString(dataNode, "room_info", "uid"),
+					GetNestedPropertyString(dataNode, "anchor_info", "base_info", "uid"),
+					GetNestedPropertyString(dataNode, "anchor_info", "uid"),
+					GetPropertyString(dataNode, "uid"),
+					GetPropertyString(dataNode, "anchor_uid"),
+					GetPropertyString(dataNode, "owner_uid"));
+
+				if (broadcasterUid <= 0)
+				{
+					_logger.Warning("BILI_ROOM_INFO_BROADCASTER_MISSING room={RoomId}", roomId);
+					return;
+				}
+
+				_activeBroadcasterUserId = broadcasterUid;
+				_logger.Information("BILI_ROOM_INFO_BROADCASTER room={RoomId} uid={UserId}", roomId, broadcasterUid);
+			}
+			catch (Exception ex)
+			{
+				_logger.Warning(ex, "BILI_ROOM_INFO_FETCH_EXCEPTION room={RoomId}", roomId);
 			}
 		}
 

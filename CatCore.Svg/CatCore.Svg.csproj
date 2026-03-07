@@ -18,11 +18,65 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<PackageReference Include="ILRepack" Version="2.*" GeneratePathProperty="true">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+	</ItemGroup>
+
+	<PropertyGroup>
+		<LegacySvgILRepackTool>$(PkgILRepack)\tools\ILRepack.exe</LegacySvgILRepackTool>
+	</PropertyGroup>
+
+	<ItemGroup>
 		<Reference Include="System.Drawing" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<PackageReference Include="Svg" Version="3.4.4" />
 	</ItemGroup>
+
+	<Target Name="ILRepackLegacySvg"
+			AfterTargets="Build"
+			Condition="'$(Configuration)' != 'Debug'">
+		<PropertyGroup>
+			<WorkingDirectory>$(ProjectDir)$(OutputPath)</WorkingDirectory>
+			<ILRepackOutputDir>Merged\</ILRepackOutputDir>
+			<ILRepackOutput>$(ILRepackOutputDir)$(AssemblyName).dll</ILRepackOutput>
+		</PropertyGroup>
+
+		<ItemGroup>
+			<RepackInputAssemblies Include="$(TargetPath)" />
+			<RepackInputAssemblies Include="@(ReferenceCopyLocalPaths)"
+							Condition="'%(ReferenceCopyLocalPaths.Extension)' == '.dll'" />
+		</ItemGroup>
+
+		<RemoveDuplicates Inputs="@(RepackInputAssemblies)">
+			<Output TaskParameter="Filtered" ItemName="RepackInputAssemblies" />
+		</RemoveDuplicates>
+
+		<ItemGroup>
+			<_ReferenceDirsDupl Include="@(ReferencePath->'%(RelativeDir)')" />
+		</ItemGroup>
+
+		<RemoveDuplicates Inputs="@(_ReferenceDirsDupl)">
+			<Output TaskParameter="Filtered" ItemName="_ReferenceDirs" />
+		</RemoveDuplicates>
+
+		<ItemGroup>
+			<_ILRCmdArg Include="-union" />
+			<_ILRCmdArg Include="-parallel" />
+			<_ILRCmdArg Include="-internalize" />
+			<_ILRCmdArg Include="-renameInternalized" />
+			<_ILRCmdArg Include="-xmldocs" />
+			<_ILRCmdArg Include="-out:$(ILRepackOutput)" />
+			<_ILRCmdArg Include="-lib:%(_ReferenceDirs.Identity)" Condition="'$(OS)' != 'Windows_NT'" />
+			<_ILRCmdArg Include="%(RepackInputAssemblies.Identity)" />
+		</ItemGroup>
+
+		<Exec ConsoleToMsBuild="true"
+			  WorkingDirectory="$(WorkingDirectory)"
+			  Command="&quot;$(LegacySvgILRepackTool)&quot; @(_ILRCmdArg->'&quot;%(Identity)&quot;', ' ')" />
+	</Target>
 
 </Project>

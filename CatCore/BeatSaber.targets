@@ -12,7 +12,9 @@
 		<ImportBSMTTargets>True</ImportBSMTTargets>
 		<BSMTProjectType>BSIPA</BSMTProjectType>
 		<GenerateManifest>True</GenerateManifest>
-		<LegacySvgOutputDir>$(MSBuildProjectDirectory)\..\CatCore.Svg\bin\$(Configuration)\net472\</LegacySvgOutputDir>
+		<LegacySvgBuildDir>$(MSBuildProjectDirectory)\..\CatCore.Svg\bin\$(Configuration)\net472\</LegacySvgBuildDir>
+		<LegacySvgOutputDir Condition="'$(Configuration)' == 'Debug'">$(LegacySvgBuildDir)</LegacySvgOutputDir>
+		<LegacySvgOutputDir Condition="'$(Configuration)' != 'Debug'">$(LegacySvgBuildDir)Merged\</LegacySvgOutputDir>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true' OR $(DefineConstants.Contains('CIBuild'))">
@@ -80,8 +82,19 @@
 			BeforeTargets="BSMT_ZipRelease"
 			Condition="Exists('$(LegacySvgOutputDir)CatCore.Svg.dll')">
 		<ItemGroup>
-			<LegacySvgArtifacts Include="$(LegacySvgOutputDir)*.dll"/>
-			<LegacySvgArtifacts Include="$(LegacySvgOutputDir)*.pdb"/>
+			<LegacySvgArtifacts Include="$(LegacySvgBuildDir)*.dll" Condition="'$(Configuration)' == 'Debug'"/>
+			<LegacySvgArtifacts Include="$(LegacySvgBuildDir)*.pdb" Condition="'$(Configuration)' == 'Debug'"/>
+			<LegacySvgArtifacts Include="$(LegacySvgOutputDir)CatCore.Svg.dll" Condition="'$(Configuration)' != 'Debug'"/>
+			<LegacySvgArtifacts Include="$(LegacySvgOutputDir)CatCore.Svg.pdb" Condition="'$(Configuration)' != 'Debug' AND Exists('$(LegacySvgOutputDir)CatCore.Svg.pdb')"/>
+			<LegacySvgArtifacts Include="$(LegacySvgOutputDir)CatCore.Svg.xml" Condition="'$(Configuration)' != 'Debug' AND Exists('$(LegacySvgOutputDir)CatCore.Svg.xml')"/>
+			<LegacySvgResiduals Include="$(ArtifactDestination)\Libs\Svg.dll" Condition="'$(Configuration)' != 'Debug'"/>
+			<LegacySvgResiduals Include="$(ArtifactDestination)\Libs\ExCSS.dll" Condition="'$(Configuration)' != 'Debug'"/>
+			<LegacySvgResiduals Include="$(ArtifactDestination)\Libs\Fizzler.dll" Condition="'$(Configuration)' != 'Debug'"/>
+			<LegacySvgResiduals Include="$(ArtifactDestination)\Libs\System.Buffers.dll" Condition="'$(Configuration)' != 'Debug'"/>
+			<LegacySvgResiduals Include="$(ArtifactDestination)\Libs\System.Memory.dll" Condition="'$(Configuration)' != 'Debug'"/>
+			<LegacySvgResiduals Include="$(ArtifactDestination)\Libs\System.Numerics.Vectors.dll" Condition="'$(Configuration)' != 'Debug'"/>
+			<LegacySvgResiduals Include="$(ArtifactDestination)\Libs\System.Runtime.CompilerServices.Unsafe.dll" Condition="'$(Configuration)' != 'Debug'"/>
+			<LegacySvgResiduals Include="$(ArtifactDestination)\Libs\CatCore.manifest" Condition="'$(Configuration)' != 'Debug'"/>
 		</ItemGroup>
 
 		<Message Text="Copying legacy SVG runtime files from '$(LegacySvgOutputDir)' to '$(ArtifactDestination)\Libs'." Importance="high"/>
@@ -89,6 +102,7 @@
 			SourceFiles="@(LegacySvgArtifacts)"
 			DestinationFiles="@(LegacySvgArtifacts->'$(ArtifactDestination)\Libs\%(Filename)%(Extension)')"
 			SkipUnchangedFiles="true" />
+		<Delete Files="@(LegacySvgResiduals)" />
 	</Target>
 
 	<Import Project="ILRepack.targets" Condition="'$(Configuration)' != 'Debug'" />
