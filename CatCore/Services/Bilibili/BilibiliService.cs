@@ -3387,7 +3387,49 @@ namespace CatCore.Services.Bilibili
 
 		private void SendMessageToChannel(string message)
 		{
-			_logger.Debug("Bilibili send-message requested but not supported by server path");
+			if (string.IsNullOrWhiteSpace(message))
+			{
+				return;
+			}
+
+			var channel = _currentChannel ?? DefaultChannel;
+			if (channel == null)
+			{
+				_logger.Debug("[DEBUG_FEEDBACK_ECHO] Skip synthetic echo because no bilibili channel is available");
+				return;
+			}
+
+			var syntheticSender = new BilibiliUser(
+				"srm",
+				"SongRequestManager",
+				"点歌姬",
+				"#FFFFFF",
+				false,
+				false);
+
+			var metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+			{
+				["source"] = "srm",
+				["bili.synthetic"] = "1",
+				["cmd"] = "plugin_message"
+			};
+
+			var syntheticMessage = new BilibiliMessage(
+				Guid.NewGuid().ToString("N"),
+				true,
+				false,
+				false,
+				"[点歌姬] " + message,
+				syntheticSender,
+				channel,
+				metadata: metadata);
+
+			_logger.Debug("[DEBUG_FEEDBACK_ECHO] Emitting synthetic bilibili message. id={MessageId} channel={ChannelId} source={Source}",
+				syntheticMessage.Id,
+				channel.Id,
+				metadata["source"]);
+
+			OnTextMessageReceived?.Invoke(this, syntheticMessage);
 		}
 
 		public void Dispose()
