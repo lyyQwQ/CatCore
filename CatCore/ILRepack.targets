@@ -17,32 +17,19 @@
 			<ILRepackOutput>$(ILRepackOutputDir)$(AssemblyName).dll</ILRepackOutput>
 		</PropertyGroup>
 
+		<!--
+			Build a single-file CatCore by merging the target assembly with all copy-local dependencies.
+			This removes the need to manually maintain a dependency allow-list (e.g. CatCore.Svg/Svg).
+		-->
 		<ItemGroup>
-			<RepackInputAssemblies Include="$(TargetPath)"/>
-
-			<RepackInputAssemblies Include="CatCore.Shared.dll"/>
-			<RepackInputAssemblies Include="CatCore.Twemoji.dll"/>
-			<RepackInputAssemblies Include="DryIoc.dll"/>
-			<RepackInputAssemblies Include="HttpMachine.dll"/>
-			<RepackInputAssemblies Include="IHttpMachine.dll"/>
-			<RepackInputAssemblies Include="IWebsocketClientLite.dll"/>
-			<RepackInputAssemblies Include="Microsoft.Bcl.AsyncInterfaces.dll"/>
-			<RepackInputAssemblies Include="Polly.dll"/>
-			<RepackInputAssemblies Include="Serilog.dll"/>
-			<RepackInputAssemblies Include="Serilog.Sinks.Async.dll"/>
-			<RepackInputAssemblies Include="System.Buffers.dll"/>
-			<RepackInputAssemblies Include="System.Memory.dll"/>
-			<RepackInputAssemblies Include="System.Net.Http.Json.dll"/>
-			<RepackInputAssemblies Include="System.Numerics.Vectors.dll"/>
-			<RepackInputAssemblies Include="System.Reactive.dll"/>
-			<RepackInputAssemblies Include="System.Reflection.Emit.ILGeneration.dll"/>
-			<RepackInputAssemblies Include="System.Reflection.Emit.Lightweight.dll"/>
-			<RepackInputAssemblies Include="System.Runtime.CompilerServices.Unsafe.dll"/>
-			<RepackInputAssemblies Include="System.Text.Encodings.Web.dll"/>
-			<RepackInputAssemblies Include="System.Text.Json.dll"/>
-			<RepackInputAssemblies Include="System.Threading.Tasks.Extensions.dll"/>
-			<RepackInputAssemblies Include="WebsocketClientLite.dll"/>
+			<RepackInputAssemblies Include="$(TargetPath)" />
+			<RepackInputAssemblies Include="@(ReferenceCopyLocalPaths)"
+							Condition="'%(ReferenceCopyLocalPaths.Extension)' == '.dll'" />
 		</ItemGroup>
+
+		<RemoveDuplicates Inputs="@(RepackInputAssemblies)">
+			<Output TaskParameter="Filtered" ItemName="RepackInputAssemblies" />
+		</RemoveDuplicates>
 
 		<!-- ReferencePath contains actual files which can be referenced, we need directories -->
 		<ItemGroup>

@@ -146,6 +146,7 @@ namespace CatCore.Services.Bilibili
 
 			_isStarted = true;
 			_authSuspendedReason = string.Empty;
+			TryWarmUpBadgeRenderer();
 			await ConnectCoreAsync(false).ConfigureAwait(false);
 		}
 
@@ -183,7 +184,25 @@ namespace CatCore.Services.Bilibili
 			}
 
 			_authSuspendedReason = string.Empty;
+			TryWarmUpBadgeRenderer();
 			await ConnectCoreAsync(true).ConfigureAwait(false);
+		}
+
+		private void TryWarmUpBadgeRenderer()
+		{
+			try
+			{
+				if (!(_settingsService?.Config?.BilibiliConfig?.ShowBadge ?? true))
+				{
+					return;
+				}
+
+				LegacySvgRendererBridge.WarmUpInBackground();
+			}
+			catch (Exception ex)
+			{
+				_logger.Warning(ex, "[BADGE_SVG_BRIDGE] warm-up trigger failed");
+			}
 		}
 
 		private async Task ConnectCoreAsync(bool forceReconnect)

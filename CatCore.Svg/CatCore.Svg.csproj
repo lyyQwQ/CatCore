@@ -1,19 +1,28 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>netstandard2.0</TargetFramework>
-		<Nullable>enable</Nullable>
+		<TargetFramework>net472</TargetFramework>
+		<Configurations>Debug;Develop;Release</Configurations>
+		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+		<Nullable>disable</Nullable>
 		<LangVersion>9</LangVersion>
-		<DebugType>full</DebugType>
 	</PropertyGroup>
 
 	<PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+		<DebugType>full</DebugType>
 		<DefineConstants>$(DefineConstants);BADGE_DEBUG</DefineConstants>
 	</PropertyGroup>
 
+	<PropertyGroup Condition=" '$(Configuration)' != 'Debug' ">
+		<DebugType>pdbonly</DebugType>
+	</PropertyGroup>
+
 	<ItemGroup>
-		<PackageReference Include="Svg" Version="3.4.7" />
-		<PackageReference Include="System.Drawing.Common" Version="5.0.3" />
+		<Reference Include="System.Drawing" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Svg" Version="3.4.4" />
 	</ItemGroup>
 
 </Project>

@@ -1,14 +1,16 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Reflection;
+using System.Security;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using CatCore.Models.Shared;
-using CatCore.Svg;
+using CatCore.Services.Bilibili.Internal;
 using Serilog;
 
 namespace CatCore.Models.Bilibili
@@ -18,6 +20,7 @@ namespace CatCore.Models.Bilibili
 		private const int BadgeHeight = 44;
 		private const int RenderScale = 3;
 		private const int BadgeCacheCapacity = 300;
+		private static readonly TimeSpan FailedBadgeRetryInterval = TimeSpan.FromMinutes(2);
 		private const string GuardResourcePrefix = "CatCore.Resources.Statics.Images.";
 
 		private static readonly Regex ChineseCharRegex = new Regex("^[\u4e00-\u9fa5]$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -26,8 +29,9 @@ namespace CatCore.Models.Bilibili
 		private static readonly Regex HalfWidthEnglishRegex = new Regex("[EFJLSTacesuvxyz]", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 		private static readonly Regex QuarterWidthEnglishRegex = new Regex("[Ifijlrt1]", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 		private static readonly BadgeUriLruCache BadgeCache = new BadgeUriLruCache(BadgeCacheCapacity);
+		private static readonly ConcurrentDictionary<string, DateTime> FailedBadgeRetryAt = new ConcurrentDictionary<string, DateTime>(StringComparer.Ordinal);
 
-		private const string SVG_FRAME = @"<?xml version=""1.0"" encoding=""utf-8""?><svg version=""1.1"" id=""Badge"" xmlns=""http://www.w3.org/2000/svg"" xmlns:xlink=""http://www.w3.org/1999/xlink"" viewBox=""0 0 %ImageWidth% 44""><defs><linearGradient id=""a"" gradientTransform=""rotate(45)""><stop offset=""0"" stop-color=""%LinearGradientColorB%""/><stop offset=""1"" stop-color=""%LinearGradientColorA%""/></linearGradient></defs><rect x=""%OFFSET_X%"" y=""%OFFSET_Y%"" rx=""4"" ry=""4"" width=""%WIDTH_1%"" height=""28"" fill=""url(#a)"" stroke=""%BorderColor%"" stroke-width=""2"" paint-order=""stroke fill""/><text x=""%OFFSET_BADGE_NAME_X%"" y=""%OFFSET_BADGE_NAME_Y%"" font-family=""Microsoft YaHei UI Semibold, Microsoft YaHei UI, Microsoft YaHei, sans-serif"" font-size=""22"" fill=""#fff"">%CONTENT%</text><rect x=""%OFFSET_Level_0%"" y=""%OFFSET_Y%"" rx=""4"" ry=""4"" width=""32"" height=""28"" fill=""#fff""/><text x=""%OFFSET_Level_1%"" y=""%OFFSET_BADGE_NAME_Y%"" text-anchor=""middle"" font-family=""Microsoft YaHei UI Semibold, Microsoft YaHei UI, Microsoft YaHei, sans-serif"" font-size=""24"" fill=""%LinearGradientColorA%"">%LEVEL%</text>%GuardImage%</svg>";
+		private const string SVG_FRAME = @"<?xml version=""1.0"" encoding=""utf-8""?><svg version=""1.1"" id=""Badge"" xmlns=""http://www.w3.org/2000/svg"" xmlns:xlink=""http://www.w3.org/1999/xlink"" viewBox=""0 0 %ImageWidth% 44""><defs><linearGradient id=""a"" gradientTransform=""rotate(45)""><stop offset=""0"" stop-color=""%LinearGradientColorB%""/><stop offset=""1"" stop-color=""%LinearGradientColorA%""/></linearGradient></defs><rect x=""%OFFSET_X%"" y=""%OFFSET_Y%"" rx=""4"" ry=""4"" width=""%WIDTH_1%"" height=""28"" fill=""url(#a)"" stroke=""%BorderColor%"" stroke-width=""2"" paint-order=""stroke fill""/><text x=""%OFFSET_BADGE_NAME_X%"" y=""%OFFSET_BADGE_NAME_Y%"" font-family=""Microsoft YaHei UI Semibold, Microsoft YaHei UI, Microsoft YaHei, 微软雅黑"" font-size=""22"" fill=""#fff"">%CONTENT%</text><rect x=""%OFFSET_Level_0%"" y=""%OFFSET_Y%"" rx=""4"" ry=""4"" width=""32"" height=""28"" fill=""#fff""/><text x=""%OFFSET_Level_1%"" y=""%OFFSET_BADGE_NAME_Y%"" text-anchor=""middle"" font-family=""Microsoft YaHei UI Semibold, Microsoft YaHei UI, Microsoft YaHei, 微软雅黑"" font-size=""24"" fill=""%LinearGradientColorA%"">%LEVEL%</text>%GuardImage%</svg>";
 
 		public string Id { get; private set; } = string.Empty;
 		public string Name { get; set; } = string.Empty;
@@ -62,6 +66,12 @@ namespace CatCore.Models.Bilibili
 				return;
 			}
 
+			if (FailedBadgeRetryAt.TryGetValue(cacheKey, out var nextRetryAtUtc) && nextRetryAtUtc > DateTime.UtcNow)
+			{
+				Id = cacheKey;
+				return;
+			}
+
 		#if BADGE_DEBUG
 			Log.Information("[BADGE_CACHE] MISS key={Key}", cacheKey);
 		#endif
@@ -74,6 +84,7 @@ namespace CatCore.Models.Bilibili
 			try
 			{
 				var nameLength = await getNameLengthAsync().ConfigureAwait(false);
+				nameLength += EstimateNameSafetyPadding(safeName, Guard);
 				var imageWidth = offsetLevel[1] + width[1] + nameLength;
 
 				var svgBuilder = new StringBuilder(SVG_FRAME);
@@ -88,7 +99,7 @@ namespace CatCore.Models.Bilibili
 				svgBuilder.Replace("%BorderColor%", BorderColor);
 				svgBuilder.Replace("%LinearGradientColorA%", LinearGradientColorA);
 				svgBuilder.Replace("%LinearGradientColorB%", LinearGradientColorB);
-				svgBuilder.Replace("%CONTENT%", safeName);
+				svgBuilder.Replace("%CONTENT%", SecurityElement.Escape(safeName) ?? string.Empty);
 				svgBuilder.Replace("%LEVEL%", Level.ToString(CultureInfo.InvariantCulture));
 
 				var guardImageBase64 = GetGuardImageBase64(Guard);
@@ -113,12 +124,11 @@ namespace CatCore.Models.Bilibili
 				Log.Information("[BADGE_SVG] genImage key={Key} medal={Medal} lv={Level} guard={Guard} colors={Start}/{End}/{Border}", badgeId, safeName, Level, Guard, LinearGradientColorA, LinearGradientColorB, BorderColor);
 			#endif
 
-				var renderer = new SvgRenderer();
-				var rendered = false;
-				for (var attempt = 0; attempt < 5 && !rendered; attempt++)
-				{
-					rendered = renderer.TryRenderToPng(svgBuilder.ToString(), outputPath, renderWidth, renderHeight);
-				}
+				var rendered = LegacySvgRendererBridge.TryRenderToPng(
+					svgBuilder.ToString(),
+					outputPath,
+					renderWidth,
+					renderHeight);
 
 				if (!rendered)
 				{
@@ -127,6 +137,7 @@ namespace CatCore.Models.Bilibili
 
 				Uri = new Uri(outputPath).AbsoluteUri;
 				Id = cacheKey;
+				FailedBadgeRetryAt.TryRemove(cacheKey, out _);
 				BadgeCache.Store(cacheKey, Uri, out var evictedKey, out var _);
 
 			#if BADGE_DEBUG
@@ -143,6 +154,7 @@ namespace CatCore.Models.Bilibili
 			}
 			catch (Exception ex)
 			{
+				FailedBadgeRetryAt[cacheKey] = DateTime.UtcNow.Add(FailedBadgeRetryInterval);
 				Log.Warning("[BADGE_SVG] FAIL key={Key} ex={ExceptionType}: {Message}", BuildBadgeId(safeName, Level, Guard), ex.GetType().Name, ex.Message);
 			}
 		}
@@ -202,6 +214,36 @@ namespace CatCore.Models.Bilibili
 			Log.Information("[BADGE_SVG] nameWidth medal={Medal} chars={Chars} width={Width}", badgeName, badgeName.Length, width);
 		#endif
 			return width;
+		}
+
+		private static int EstimateNameSafetyPadding(string badgeName, int guardLevel)
+		{
+			var safeName = badgeName ?? string.Empty;
+			var chineseCount = 0;
+			var longNameBonus = 0;
+
+			for (var i = 0; i < safeName.Length; i++)
+			{
+				if (ChineseCharRegex.IsMatch(safeName.Substring(i, 1)))
+				{
+					chineseCount++;
+				}
+			}
+
+			// The legacy width heuristic is slightly optimistic for Chinese glyphs,
+			// especially when the level block sits tight on the right edge.
+			if (chineseCount >= 8 || safeName.Length >= 10)
+			{
+				longNameBonus = 4;
+			}
+
+			var padding = 4 + chineseCount;
+			if (guardLevel > 0)
+			{
+				padding += 2;
+			}
+
+			return padding + longNameBonus;
 		}
 
 		public void setMedalColorByLevel(int level, int guardLevel = 0)

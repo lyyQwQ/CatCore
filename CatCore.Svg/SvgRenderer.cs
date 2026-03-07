@@ -11,10 +11,18 @@ namespace CatCore.Svg
 {
 	public sealed class SvgRenderer
 	{
-		private const string FontFallbackFamily = "Microsoft YaHei UI Semibold, Microsoft YaHei UI, Microsoft YaHei, sans-serif";
+		private sealed class FontCandidate
+		{
+			public string FontPath { get; set; } = string.Empty;
+			public string[] FamilyNames { get; set; } = Array.Empty<string>();
+		}
+
+		private const string FontFallbackFamily = "Microsoft YaHei UI Semibold, Microsoft YaHei UI, Microsoft YaHei, 微软雅黑";
 		private const string SourceFamily = "Microsoft YaHei UI Semibold";
 		private static readonly string[] SemiboldToUiMapping = { "Microsoft YaHei UI Semibold", "Microsoft YaHei UI" };
+		private static readonly object FontLock = new object();
 		private static bool _fontMappingsInitialized;
+		private static FontCandidate _selectedFont = new FontCandidate();
 
 		public bool TryRenderToPng(string svgTemplate, string outputPath, int width, int height)
 		{
@@ -31,53 +39,35 @@ namespace CatCore.Svg
 			{
 				InitializeFontMappings();
 				var normalizedTemplate = EnsureFallbackFontFamily(svgTemplate);
-				var pngBytes = RenderSvgToPng(normalizedTemplate, width, height);
-				if (pngBytes.Length == 0)
+				var directory = Path.GetDirectoryName(outputPath);
+				if (!string.IsNullOrWhiteSpace(directory))
 				{
-					return false;
+					Directory.CreateDirectory(directory);
 				}
 
-				File.WriteAllBytes(outputPath, pngBytes);
+				using (var svgStream = new MemoryStream(Encoding.UTF8.GetBytes(normalizedTemplate)))
+				using (var bitmap = new Bitmap(width, height))
+				using (var graphics = Graphics.FromImage(bitmap))
+				{
+					var svgDocument = SvgDocument.Open<SvgDocument>(svgStream);
+					svgDocument.Width = width;
+					svgDocument.Height = height;
+					graphics.Clear(Color.Transparent);
+
+					var renderer = global::Svg.SvgRenderer.FromGraphics(graphics);
+					svgDocument.Draw(renderer);
+					bitmap.Save(outputPath, ImageFormat.Png);
+				}
+
 #if BADGE_DEBUG
-				Console.WriteLine($"[BADGE_SVG] render done bytes={pngBytes.Length}");
+				Console.WriteLine($"[BADGE_SVG] render done output={outputPath}");
 #endif
 				return true;
 			}
 			catch (Exception ex)
 			{
-				LogWarning($"Render failed: {ex.Message}");
+				LogWarning($"Render failed: {ex.GetType().Name}: {ex.Message}");
 				return false;
-			}
-		}
-
-		public byte[] RenderSvgToPng(string svgTemplate, int width, int height)
-		{
-			try
-			{
-				using (var svgStream = new MemoryStream(Encoding.UTF8.GetBytes(svgTemplate)))
-				using (var output = new MemoryStream())
-				{
-					var svgDocument = SvgDocument.Open<SvgDocument>(svgStream);
-					svgDocument.Width = width;
-					svgDocument.Height = height;
-					using (var bitmap = svgDocument.Draw(width, height))
-					{
-						if (bitmap == null)
-						{
-							LogWarning("Render failed: svg draw returned null bitmap.");
-							return Array.Empty<byte>();
-						}
-
-						bitmap.Save(output, ImageFormat.Png);
-					}
-
-					return output.ToArray();
-				}
-			}
-			catch (Exception ex)
-			{
-				LogWarning($"Render failed: {ex.Message}");
-				return Array.Empty<byte>();
 			}
 		}
 
@@ -88,30 +78,38 @@ namespace CatCore.Svg
 				return;
 			}
 
-			try
+			lock (FontLock)
 			{
-				var localizedFamilyNames = (object)SvgFontManager.LocalizedFamilyNames;
-				if (localizedFamilyNames is IDictionary<string, string> dictionary)
+				if (_fontMappingsInitialized)
 				{
-					dictionary[SemiboldToUiMapping[0]] = SemiboldToUiMapping[1];
-				}
-				else if (localizedFamilyNames is ICollection<string[]> familyCollection)
-				{
-					var exists = familyCollection.Any(x => x.Length >= 2 && string.Equals(x[0], SemiboldToUiMapping[0], StringComparison.Ordinal) && string.Equals(x[1], SemiboldToUiMapping[1], StringComparison.Ordinal));
-					if (!exists)
-					{
-						familyCollection.Add(new[] { SemiboldToUiMapping[0], SemiboldToUiMapping[1] });
-					}
+					return;
 				}
 
-				_fontMappingsInitialized = true;
+				try
+				{
+					_selectedFont = ResolvePreferredFont();
+
+					if (!string.IsNullOrWhiteSpace(_selectedFont.FontPath) && File.Exists(_selectedFont.FontPath))
+					{
+						if (!SvgFontManager.PrivateFontPathList.Contains(_selectedFont.FontPath))
+						{
+							SvgFontManager.PrivateFontPathList.Add(_selectedFont.FontPath);
+						}
+
+						AppendFamilyNames(_selectedFont.FamilyNames);
+					}
+
+					AppendFamilyNames(new[] { SemiboldToUiMapping[0], SemiboldToUiMapping[1] });
+
+					_fontMappingsInitialized = true;
 #if BADGE_DEBUG
-				Console.WriteLine("[BADGE_SVG] font init done: Microsoft YaHei UI Semibold -> Microsoft YaHei UI");
+					Console.WriteLine($"[BADGE_SVG] font init done path={_selectedFont.FontPath}");
 #endif
-			}
-			catch (Exception ex)
-			{
-				LogWarning($"Font init failed: {ex.Message}");
+				}
+				catch (Exception ex)
+				{
+					LogWarning($"Font init failed: {ex.Message}");
+				}
 			}
 		}
 
@@ -141,6 +139,125 @@ namespace CatCore.Svg
 			}
 
 			return svgTemplate.Insert(insertIndex, $" style=\"font-family: {FontFallbackFamily};\"");
+		}
+
+		private static void AppendFamilyNames(string[] familyNames)
+		{
+			if (familyNames == null || familyNames.Length == 0)
+			{
+				return;
+			}
+
+			var localizedFamilyNames = (object)SvgFontManager.LocalizedFamilyNames;
+			if (localizedFamilyNames is IDictionary<string, string> dictionary)
+			{
+				for (var i = 0; i < familyNames.Length - 1; i++)
+				{
+					dictionary[familyNames[i]] = familyNames[i + 1];
+				}
+
+				return;
+			}
+
+			if (localizedFamilyNames is ICollection<string[]> familyCollection)
+			{
+				var exists = familyCollection.Any(x => x.SequenceEqual(familyNames));
+				if (!exists)
+				{
+					familyCollection.Add(familyNames);
+				}
+			}
+		}
+
+		private static FontCandidate ResolvePreferredFont()
+		{
+			var windowsFonts = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Fonts");
+			var localFonts = Path.Combine(
+				Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+				"Microsoft",
+				"Windows",
+				"Fonts");
+
+			var candidates = new[]
+			{
+				new FontCandidate
+				{
+					FontPath = Path.Combine(windowsFonts, "msyhbd.ttc"),
+					FamilyNames = new[]
+					{
+						"Microsoft YaHei UI Semibold",
+						"Microsoft YaHei UI Bold",
+						"Microsoft YaHei UI",
+						"Microsoft YaHei",
+						"MicrosoftYaHeiUISemibold",
+						"微软雅黑 Semibold",
+						"微软雅黑 Bold",
+						"微软雅黑"
+					}
+				},
+				new FontCandidate
+				{
+					FontPath = Path.Combine(windowsFonts, "msyh.ttc"),
+					FamilyNames = new[]
+					{
+						"Microsoft YaHei UI",
+						"Microsoft YaHei",
+						"微软雅黑",
+						"Microsoft YaHei UI Semibold",
+						"MicrosoftYaHeiUISemibold",
+						"微软雅黑 Semibold"
+					}
+				},
+				new FontCandidate
+				{
+					FontPath = Path.Combine(windowsFonts, "msyhl.ttc"),
+					FamilyNames = new[]
+					{
+						"Microsoft YaHei UI Light",
+						"Microsoft YaHei UI",
+						"Microsoft YaHei",
+						"微软雅黑 Light",
+						"微软雅黑",
+						"Microsoft YaHei UI Semibold"
+					}
+				},
+				new FontCandidate
+				{
+					FontPath = Path.Combine(localFonts, "msyhbd.ttc"),
+					FamilyNames = new[]
+					{
+						"Microsoft YaHei UI Semibold",
+						"Microsoft YaHei UI Bold",
+						"Microsoft YaHei UI",
+						"Microsoft YaHei",
+						"微软雅黑 Semibold",
+						"微软雅黑 Bold",
+						"微软雅黑"
+					}
+				},
+				new FontCandidate
+				{
+					FontPath = Path.Combine(localFonts, "msyh.ttc"),
+					FamilyNames = new[]
+					{
+						"Microsoft YaHei UI",
+						"Microsoft YaHei",
+						"微软雅黑",
+						"Microsoft YaHei UI Semibold",
+						"微软雅黑 Semibold"
+					}
+				}
+			};
+
+			foreach (var candidate in candidates)
+			{
+				if (File.Exists(candidate.FontPath))
+				{
+					return candidate;
+				}
+			}
+
+			return new FontCandidate();
 		}
 
 		private static void LogWarning(string message)

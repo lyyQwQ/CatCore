@@ -51,7 +51,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\CatCore.Svg\CatCore.Svg.csproj" />
 		<ProjectReference Include="..\CatCore.Shared\CatCore.Shared.csproj" />
 		<ProjectReference Include="..\CatCore.Twemoji\CatCore.Twemoji.csproj" />
 		<ProjectReference Include="..\CatCore.Twemoji.SourceGeneration\CatCore.Twemoji.SourceGeneration.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
@@ -60,12 +59,20 @@
 	<!-- Manually reference the generator props because we locally reference the generator. When added via NuGet this happens automatically -->
 	<Import Project="..\CatCore.Twemoji.SourceGeneration\CatCore.Twemoji.SourceGeneration.props" />
 
-    <ItemGroup>
+	<ItemGroup>
 		<EmbeddedResource Include="Resources\**\*" />
 		<AdditionalFiles Include="..\Useful files\Unicode\Unicode14_0EmojiTest.txt" ClassName="Emojis">
 			<Link>Resources\Unicode14_0EmojiTest.txt</Link>
 		</AdditionalFiles>
     </ItemGroup>
+
+	<Target Name="BuildLegacySvgRenderer" BeforeTargets="SetManifestInfo">
+		<MSBuild
+			Projects="..\CatCore.Svg\CatCore.Svg.csproj"
+			Targets="Build"
+			BuildInParallel="false"
+			Properties="Configuration=$(Configuration)" />
+	</Target>
 
 	<Import Project="BeatSaber.targets" />
 

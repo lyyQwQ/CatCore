@@ -12,6 +12,7 @@
 		<ImportBSMTTargets>True</ImportBSMTTargets>
 		<BSMTProjectType>BSIPA</BSMTProjectType>
 		<GenerateManifest>True</GenerateManifest>
+		<LegacySvgOutputDir>$(MSBuildProjectDirectory)\..\CatCore.Svg\bin\$(Configuration)\net472\</LegacySvgOutputDir>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true' OR $(DefineConstants.Contains('CIBuild'))">
@@ -72,6 +73,22 @@
 			<ConflictsWith Include="ChatCore" Version="*"/>
 			<LoadBefore Include="ChatCore"/>
 		</ItemGroup>
+	</Target>
+
+	<Target Name="CopyLegacySvgArtifacts"
+			AfterTargets="CopyToArtifactDestination"
+			BeforeTargets="BSMT_ZipRelease"
+			Condition="Exists('$(LegacySvgOutputDir)CatCore.Svg.dll')">
+		<ItemGroup>
+			<LegacySvgArtifacts Include="$(LegacySvgOutputDir)*.dll"/>
+			<LegacySvgArtifacts Include="$(LegacySvgOutputDir)*.pdb"/>
+		</ItemGroup>
+
+		<Message Text="Copying legacy SVG runtime files from '$(LegacySvgOutputDir)' to '$(ArtifactDestination)\Libs'." Importance="high"/>
+		<Copy
+			SourceFiles="@(LegacySvgArtifacts)"
+			DestinationFiles="@(LegacySvgArtifacts->'$(ArtifactDestination)\Libs\%(Filename)%(Extension)')"
+			SkipUnchangedFiles="true" />
 	</Target>
 
 	<Import Project="ILRepack.targets" Condition="'$(Configuration)' != 'Debug'" />
