@@ -3395,7 +3395,7 @@ namespace CatCore.Services.Bilibili
 			var channel = _currentChannel ?? DefaultChannel;
 			if (channel == null)
 			{
-				_logger.Debug("[DEBUG_FEEDBACK_ECHO] Skip synthetic echo because no bilibili channel is available");
+				// _logger.Debug("[DEBUG_FEEDBACK_ECHO] Skip synthetic echo because no bilibili channel is available");
 				return;
 			}
 
@@ -3424,10 +3424,10 @@ namespace CatCore.Services.Bilibili
 				channel,
 				metadata: metadata);
 
-			_logger.Debug("[DEBUG_FEEDBACK_ECHO] Emitting synthetic bilibili message. id={MessageId} channel={ChannelId} source={Source}",
-				syntheticMessage.Id,
-				channel.Id,
-				metadata["source"]);
+			// _logger.Debug("[DEBUG_FEEDBACK_ECHO] Emitting synthetic bilibili message. id={MessageId} channel={ChannelId} source={Source}",
+			// 	syntheticMessage.Id,
+			// 	channel.Id,
+			// 	metadata["source"]);
 
 			OnTextMessageReceived?.Invoke(this, syntheticMessage);
 		}
