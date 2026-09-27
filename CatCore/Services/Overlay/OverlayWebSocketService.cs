@@ -381,7 +381,8 @@ namespace CatCore.Services.Overlay
 
 		private static string BuildOverlayPrefix(Uri webApiUri)
 		{
-			var websocketPort = webApiUri.Port == ushort.MaxValue ? 1 : webApiUri.Port + 1;
+			// 配置网页使用 8338，Overlay 使用前一个端口 8337，避开 ChatPlexSDK 默认占用的 8339。
+			var websocketPort = webApiUri.Port <= 1 ? ushort.MaxValue : webApiUri.Port - 1;
 			var host = string.IsNullOrWhiteSpace(webApiUri.Host) ? "localhost" : webApiUri.Host;
 			return $"http://{host}:{websocketPort}/";
 		}

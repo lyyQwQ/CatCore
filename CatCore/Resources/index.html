@@ -856,12 +856,15 @@
 
 		try {
 			if (statusElement) statusElement.textContent = "正在请求二维码... (Requesting QR login...)";
+				console.info("[BILI_QR] request start");
 
 			const response = await fetch("/api/bilibili/qr_request");
+				console.info("[BILI_QR] request response", response.status, response.statusText);
 			if (!response.ok) {
 				throw new Error(`HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}`);
 			}
 			const body = await response.json();
+				console.info("[BILI_QR] request payload", { status: body["status"], urlPresent: Boolean(body["url"]) });
 
 			if (statusElement) {
 				statusElement.textContent = body["status"] || "请扫描二维码 (Please scan the QR).";
@@ -890,6 +893,7 @@
 				document.getElementById("bilibili-settings-cookies-qr-login-status-request-icon").textContent = "error";
 			}
 		} catch (ex) {
+				console.error("[BILI_QR] request failed", ex);
 			if (statusElement) statusElement.textContent = "请求二维码失败 (Failed).";
 			set_bilibili_login_progress('error');
 			document.getElementById("bilibili-settings-cookies-qr-login-status-request-icon").textContent = "error";
@@ -912,11 +916,13 @@
 
 		try {
 			const response = await fetch("/api/bilibili/qr_status");
+				console.info("[BILI_QR] poll response", response.status, response.statusText);
 			if (!response.ok) {
 				throw new Error(`HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}`);
 			}
 			const body = await response.json();
 			const status = typeof body["status"] === "string" ? body["status"] : "";
+				console.info("[BILI_QR] poll payload", { status: status, cookieLength: body["cookies"] ? body["cookies"].length : 0 });
 
 			if (statusElement && status) {
 				statusElement.textContent = status;
@@ -949,8 +955,17 @@
 				set_bilibili_login_progress('done');
 				
 				M.toast({html: "已通过二维码登录获取 Bilibili Cookie。"});
+				} else if (status.includes("succeeded")) {
+					// 登录确认已经完成但没有拿到 Cookie 时必须结束轮询，避免进度条持续运行。
+					StopBilibiliQrPolling();
+					set_bilibili_login_progress('error');
+					document.getElementById("bilibili-settings-cookies-qr-login-status-confirm-icon").textContent = "error";
+					if (statusElement) {
+						statusElement.textContent = "二维码登录已确认，但未返回 Cookie，请重新请求二维码。";
+					}
 			}
 		} catch (ex) {
+				console.error("[BILI_QR] poll failed", ex);
 			StopBilibiliQrPolling();
 			set_bilibili_login_progress('error');
 			if (statusElement) statusElement.textContent = "二维码轮询失败 (Polling failed).";

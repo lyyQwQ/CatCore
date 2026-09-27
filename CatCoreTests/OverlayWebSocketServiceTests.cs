@@ -195,8 +195,8 @@ namespace CatCoreTests
 
 		private static OverlayWebSocketService StartOverlayService(out Uri webSocketUri)
 		{
-			var websocketPort = FindAvailablePort();
-			var webApiPort = websocketPort - 1;
+			var webApiPort = FindAvailablePort();
+			var websocketPort = webApiPort - 1;
 			webSocketUri = new Uri($"ws://127.0.0.1:{websocketPort}/");
 
 			var service = new OverlayWebSocketService(CreateSilentLogger());

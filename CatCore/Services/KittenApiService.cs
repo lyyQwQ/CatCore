@@ -29,6 +29,7 @@ namespace CatCore.Services
 		private readonly IOverlayWebSocketService _overlayWebSocketService;
 		private readonly Version _libraryVersion;
 		private static readonly HttpClient BilibiliHttpClient = new HttpClient();
+		private static readonly HttpClient BilibiliQrRedirectHttpClient = CreateBilibiliQrRedirectHttpClient();
 		private static readonly Dictionary<string, string> StaticContentTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
 		{
 			[".html"] = "text/html",
@@ -48,6 +49,19 @@ namespace CatCore.Services
 		private string? _bilibiliQrKey;
 		private string? _bilibiliQrUrl;
 		private string _bilibiliQrStatus = "Idle";
+
+		private static HttpClient CreateBilibiliQrRedirectHttpClient()
+		{
+			var handler = new HttpClientHandler
+			{
+				AllowAutoRedirect = false,
+				UseCookies = false
+			};
+			var client = new HttpClient(handler);
+			client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36");
+			client.DefaultRequestHeaders.Referrer = new Uri("https://passport.bilibili.com/");
+			return client;
+		}
 
 		private HttpListener? _listener;
 		private CancellationTokenSource? _listenerCancellationTokenSource;
@@ -481,6 +495,7 @@ namespace CatCore.Services
 			switch (request.Url.Segments.ElementAtOrDefault(3))
 			{
 				case "qr_request" when request.HttpMethod == "GET":
+						_logger.Information("[BILI_QR_API] request=qr_request");
 					response.ContentEncoding = Encoding.UTF8;
 					response.ContentType = "application/json";
 
@@ -495,14 +510,17 @@ namespace CatCore.Services
 					}
 
 					await JsonSerializer.SerializeAsync(response.OutputStream, new {url, status}).ConfigureAwait(false);
+						_logger.Information("[BILI_QR_API] response=qr_request status={Status} urlPresent={UrlPresent}", status, !string.IsNullOrWhiteSpace(url));
 
 					return true;
 				case "qr_status" when request.HttpMethod == "GET":
+						_logger.Information("[BILI_QR_API] request=qr_status");
 					response.ContentEncoding = Encoding.UTF8;
 					response.ContentType = "application/json";
 
 					var (pollStatus, cookies) = await PollBilibiliQrLoginStatus().ConfigureAwait(false);
 					await JsonSerializer.SerializeAsync(response.OutputStream, new {status = pollStatus, cookies}).ConfigureAwait(false);
+						_logger.Information("[BILI_QR_API] response=qr_status status={Status} cookieLength={CookieLength}", pollStatus, cookies?.Length ?? 0);
 
 					return true;
 				case "state" when request.HttpMethod == "GET":
@@ -548,6 +566,7 @@ namespace CatCore.Services
 				using var response = await BilibiliHttpClient
 					.GetAsync("https://passport.bilibili.com/x/passport-login/web/qrcode/generate")
 					.ConfigureAwait(false);
+				_logger.Information("[BILI_QR] generate httpStatus={StatusCode}", (int)response.StatusCode);
 				response.EnsureSuccessStatusCode();
 
 				using var contentStream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
@@ -555,6 +574,7 @@ namespace CatCore.Services
 
 				var root = jsonDocument.RootElement;
 				var code = root.TryGetProperty("code", out var codeElement) ? codeElement.GetInt32() : -1;
+				_logger.Information("[BILI_QR] generate bilibiliCode={Code}", code);
 				if (code != 0 || !root.TryGetProperty("data", out var dataElement))
 				{
 					const string failedStatus = "Failed to request QR login.";
@@ -572,6 +592,14 @@ namespace CatCore.Services
 				var qrCodeKey = dataElement.TryGetProperty("qrcode_key", out var qrKeyElement)
 					? qrKeyElement.GetString() ?? string.Empty
 					: string.Empty;
+
+				// B 站近期可能返回 account.bilibili.com 的旧扫码地址；该地址在 App 中会直接提示二维码失效。
+				// qrcode_key 仍是同一套 Web 登录流程的有效凭据，统一使用 Passport 扫码入口生成二维码。
+				if (!string.IsNullOrWhiteSpace(qrCodeKey))
+				{
+					qrLoginUrl = $"https://passport.bilibili.com/h5-app/passport/login/scan?navhide=1&callback=close&qrcode_key={WebUtility.UrlEncode(qrCodeKey)}&from=";
+				}
+				_logger.Information("[BILI_QR] generate payload keyLength={KeyLength} urlHost={UrlHost} urlPath={UrlPath}", qrCodeKey.Length, GetQrUrlPart(qrLoginUrl, true), GetQrUrlPart(qrLoginUrl, false));
 
 				if (string.IsNullOrWhiteSpace(qrLoginUrl) || string.IsNullOrWhiteSpace(qrCodeKey))
 				{
@@ -632,6 +660,7 @@ namespace CatCore.Services
 				using var response = await BilibiliHttpClient
 					.GetAsync($"https://passport.bilibili.com/x/passport-login/web/qrcode/poll?qrcode_key={WebUtility.UrlEncode(qrCodeKey)}")
 					.ConfigureAwait(false);
+					_logger.Information("[BILI_QR] poll httpStatus={StatusCode}", (int)response.StatusCode);
 				response.EnsureSuccessStatusCode();
 
 				using var contentStream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
@@ -651,6 +680,7 @@ namespace CatCore.Services
 				}
 
 				var pollCode = dataElement.TryGetProperty("code", out var pollCodeElement) ? pollCodeElement.GetInt32() : -1;
+					_logger.Information("[BILI_QR] poll bilibiliCode={Code}", pollCode);
 				switch (pollCode)
 				{
 					case 86101:
@@ -670,6 +700,16 @@ namespace CatCore.Services
 							? redirectUrlElement.GetString() ?? string.Empty
 							: string.Empty;
 						var cookies = BuildBilibiliCookieString(redirectUrl);
+						if (string.IsNullOrWhiteSpace(cookies) && !string.IsNullOrWhiteSpace(redirectUrl))
+						{
+							cookies = await FetchBilibiliCookiesFromRedirect(redirectUrl).ConfigureAwait(false);
+						}
+						if (!HasRequiredBilibiliCookies(cookies))
+						{
+							_logger.Warning("[BILI_QR] login completed but required cookies are incomplete; refusing to overwrite existing settings");
+							cookies = string.Empty;
+						}
+						_logger.Information("[BILI_QR] poll success redirectPresent={RedirectPresent} cookieLength={CookieLength}", !string.IsNullOrWhiteSpace(redirectUrl), cookies.Length);
 
 						if (!string.IsNullOrWhiteSpace(cookies))
 						{
@@ -685,7 +725,9 @@ namespace CatCore.Services
 							_bilibiliQrUrl = null;
 						}
 
-						return UpdateBilibiliQrStatus("QR login succeeded.", cookies);
+						return UpdateBilibiliQrStatus(string.IsNullOrWhiteSpace(cookies)
+							? "QR login succeeded, but no cookies were returned. Please retry."
+							: "QR login succeeded.", cookies);
 					default:
 						return UpdateBilibiliQrStatus($"Unhandled QR status code: {pollCode}", string.Empty);
 				}
@@ -755,6 +797,105 @@ namespace CatCore.Services
 			}
 
 			return string.Join("; ", cookieParts.Distinct(StringComparer.OrdinalIgnoreCase));
+		}
+
+		private async Task<string> FetchBilibiliCookiesFromRedirect(string redirectUrl)
+		{
+			if (!Uri.TryCreate(redirectUrl, UriKind.Absolute, out var nextUri))
+			{
+				return string.Empty;
+			}
+
+			var cookieKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+			{
+				"SESSDATA",
+				"bili_jct",
+				"DedeUserID",
+				"DedeUserID__ckMd5",
+				"sid",
+				"buvid3"
+			};
+			var cookies = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+			for (var redirectCount = 0; redirectCount < 6 && nextUri != null; redirectCount++)
+			{
+				using var response = await BilibiliQrRedirectHttpClient.GetAsync(nextUri).ConfigureAwait(false);
+				var setCookieNames = new List<string>();
+				if (response.Headers.TryGetValues("Set-Cookie", out var setCookieHeaders))
+				{
+					foreach (var header in setCookieHeaders)
+					{
+						var pair = header.Split(new[] {';'}, 2)[0];
+						var separatorIndex = pair.IndexOf('=');
+						if (separatorIndex < 1)
+						{
+							continue;
+						}
+
+					var locationCookies = BuildBilibiliCookieString(response.Headers.Location?.ToString() ?? string.Empty);
+					if (!string.IsNullOrWhiteSpace(locationCookies))
+					{
+						foreach (var cookie in locationCookies.Split(new[] {';'}, StringSplitOptions.RemoveEmptyEntries))
+						{
+							var locationSeparatorIndex = cookie.IndexOf('=');
+							if (locationSeparatorIndex > 0)
+							{
+								cookies[cookie.Substring(0, locationSeparatorIndex)] = cookie.Substring(locationSeparatorIndex + 1);
+							}
+						}
+						_logger.Information("[BILI_QR] redirect location contained cookie names={CookieNames}",
+							string.Join(",", locationCookies.Split(new[] {';'}, StringSplitOptions.RemoveEmptyEntries).Select(cookie => cookie.Split('=')[0])));
+					}
+
+						var name = pair.Substring(0, separatorIndex).Trim();
+						var value = pair.Substring(separatorIndex + 1).Trim();
+						if (!cookieKeys.Contains(name) || string.IsNullOrWhiteSpace(value))
+						{
+							continue;
+						}
+
+						cookies[name] = value;
+						setCookieNames.Add(name);
+					}
+				}
+
+				_logger.Information("[BILI_QR] redirect host={Host} path={Path} httpStatus={StatusCode} setCookieNames={CookieNames}",
+					nextUri.Host, nextUri.AbsolutePath, (int)response.StatusCode, string.Join(",", setCookieNames.Distinct(StringComparer.OrdinalIgnoreCase)));
+
+				if ((int)response.StatusCode < 300 || (int)response.StatusCode >= 400 || response.Headers.Location == null)
+				{
+					break;
+				}
+
+				nextUri = new Uri(nextUri, response.Headers.Location);
+			}
+
+			return string.Join("; ", cookies.Select(pair => $"{pair.Key}={pair.Value}"));
+		}
+
+		private static bool HasRequiredBilibiliCookies(string cookies)
+		{
+			var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+			foreach (var cookie in cookies.Split(new[] {';'}, StringSplitOptions.RemoveEmptyEntries))
+			{
+				var separatorIndex = cookie.IndexOf('=');
+				if (separatorIndex > 0)
+				{
+					names.Add(cookie.Substring(0, separatorIndex).Trim());
+				}
+			}
+
+			return names.Contains("SESSDATA") && names.Contains("bili_jct") && names.Contains("DedeUserID");
+		}
+
+		private static string GetQrUrlPart(string url, bool host)
+		{
+			if (!Uri.TryCreate(url, UriKind.Absolute, out var parsedUri))
+			{
+				return string.Empty;
+			}
+
+			return host ? parsedUri.Host : parsedUri.AbsolutePath;
 		}
 	}
 }

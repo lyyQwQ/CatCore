@@ -281,7 +281,7 @@ async function reloadConfig() {
 
 function linkWebsocket() {
 	let port = parseInt(window.location.port);
-	port = port === 65535 ? 1 : port + 1;
+	port = port <= 1 ? 65535 : port - 1;
 	let _websocket = new WebSocket(`ws://${window.location.hostname}:${port}`);
 	let _websocketHeartBeat = setInterval(function () { }, 300000);
 
