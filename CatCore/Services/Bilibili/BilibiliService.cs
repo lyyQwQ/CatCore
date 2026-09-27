@@ -1680,10 +1680,17 @@ namespace CatCore.Services.Bilibili
 			var infoPrefix = ResolveDanmuMedalDisplayPrefix(infoNode);
 			if (!string.IsNullOrWhiteSpace(infoPrefix))
 			{
-				#if BADGE_DEBUG
-				Log.Information("[TASK14DBG][CATCORE] " + $"stage=medal-prefix-root branch=info infoEmpty=false dataFallbackEntered=false hasMedalPrefix={!string.IsNullOrWhiteSpace(infoPrefix)}");
-				#endif
-				return infoPrefix;
+				// info[3] 是新版弹幕协议的粉丝牌槽位。有效徽章交给徽章/富媒体解析处理，
+				// 不再把同一份信息降级成用户名文字前缀，避免徽章图片和文字重复、重叠。
+				return string.Empty;
+			}
+
+			if (TryGetArrayElement(infoNode, 3, out var medalNode)
+				&& medalNode.ValueKind == JsonValueKind.Array
+				&& TryGetArrayElement(medalNode, 1, out var medalNameNode)
+				&& !string.IsNullOrWhiteSpace(GetElementString(medalNameNode, string.Empty)))
+			{
+				return string.Empty;
 			}
 
 			if (!root.TryGetProperty("data", out var dataNode) || dataNode.ValueKind != JsonValueKind.Object)

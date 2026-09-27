@@ -19,6 +19,7 @@ using Xunit;
 
 namespace CatCoreTests
 {
+	[Collection("OverlayWebSocketService")]
 	public sealed class OverlayWebSocketServiceTests
 	{
 		[Fact]
@@ -195,13 +196,25 @@ namespace CatCoreTests
 
 		private static OverlayWebSocketService StartOverlayService(out Uri webSocketUri)
 		{
-			var webApiPort = FindAvailablePort();
-			var websocketPort = webApiPort - 1;
-			webSocketUri = new Uri($"ws://127.0.0.1:{websocketPort}/");
+			for (var attempt = 0; attempt < 10; attempt++)
+			{
+				var webApiPort = FindAvailablePort();
+				var websocketPort = webApiPort - 1;
+				webSocketUri = new Uri($"ws://127.0.0.1:{websocketPort}/");
 
-			var service = new OverlayWebSocketService(CreateSilentLogger());
-			service.Start(new Uri($"http://127.0.0.1:{webApiPort}/"));
-			return service;
+				var service = new OverlayWebSocketService(CreateSilentLogger());
+				try
+				{
+					service.Start(new Uri($"http://127.0.0.1:{webApiPort}/"));
+					return service;
+				}
+				catch (HttpListenerException) when (attempt < 9)
+				{
+					service.Dispose();
+				}
+			}
+
+			throw new InvalidOperationException("Unable to start overlay test service on an available port pair.");
 		}
 
 		private static ILogger CreateSilentLogger()
@@ -329,5 +342,10 @@ namespace CatCoreTests
 				.Select(channel => channel!)
 				.ToArray();
 		}
+	}
+
+	[CollectionDefinition("OverlayWebSocketService", DisableParallelization = true)]
+	public sealed class OverlayWebSocketServiceCollection
+	{
 	}
 }
