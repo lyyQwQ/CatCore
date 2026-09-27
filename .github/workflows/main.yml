@@ -16,26 +16,26 @@ on:
 jobs:
     catcore-shared:
         name: CatCore.Shared
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
-            -   uses: actions/checkout@v2
+            -   uses: actions/checkout@v4
             -   name: Setup dotnet
-                uses: actions/setup-dotnet@v1
+                uses: actions/setup-dotnet@v4
                 with:
-                    dotnet-version: 6.0.x
+                    dotnet-version: 8.0.x
             -   name: Build CatCore.Shared
                 id: Build
                 run: dotnet build CatCore.Shared --configuration Release
     catcore:
         name: CatCore
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         needs: catcore-shared
         steps:
-            -   uses: actions/checkout@v2
+            -   uses: actions/checkout@v4
             -   name: Setup dotnet
-                uses: actions/setup-dotnet@v1
+                uses: actions/setup-dotnet@v4
                 with:
-                    dotnet-version: 6.0.x
+                    dotnet-version: 8.0.x
             -   name: Removed .example suffix from Constants implementation
                 run: find ~ -type f -name Constants.user.cs.example -execdir mv Constants.user.cs.example Constants.user.cs \;
             -   name: Find and Replace - Insert CatCore Auth Server URI
@@ -51,20 +51,20 @@ jobs:
                     BUILDTEXT: Filename=${{ steps.Build.outputs.filename }}
                     ASSEMBLYNAME: AssemblyName=${{ steps.Build.outputs.assemblyname }}
             -   name: Upload Artifact
-                uses: actions/upload-artifact@v1
+                uses: actions/upload-artifact@v4
                 with:
                     name: ${{ steps.Build.outputs.filename }}
                     path: ${{ steps.Build.outputs.artifactpath }}
     catcore-azure:
         name: CatCore.Azure
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         needs: catcore-shared
         steps:
-            -   uses: actions/checkout@v2
+            -   uses: actions/checkout@v4
             -   name: Setup dotnet
-                uses: actions/setup-dotnet@v1
+                uses: actions/setup-dotnet@v4
                 with:
-                    dotnet-version: 6.0.x
+                    dotnet-version: 8.0.x
             -   name: Build CatCore.Azure
                 id: Build
                 run: dotnet build CatCore.Azure --configuration Release
