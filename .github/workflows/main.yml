@@ -51,7 +51,7 @@ jobs:
                 id: Build
                 run: dotnet build CatCore --configuration Release
             -   name: Echo Filename
-                run: echo $BUILDTEXT \($ASSEMBLYNAME\)
+                run: Write-Output "$env:BUILDTEXT ($env:ASSEMBLYNAME)"
                 env:
                     BUILDTEXT: Filename=${{ steps.Build.outputs.filename }}
                     ASSEMBLYNAME: AssemblyName=${{ steps.Build.outputs.assemblyname }}
